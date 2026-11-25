@@ -12,7 +12,6 @@ Allows the user to:
 from __future__ import annotations
 
 import csv
-import hmac
 import json
 import logging
 import os
@@ -40,17 +39,6 @@ STOP_FILE = ROOT / "STOP_TRADING"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 _ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "ORDER_PRODUCT", "MAX_DAILY_LOSS", "SIZING_MODE")
-
-
-def _get_pin() -> str:
-    return os.getenv("WEB_PANEL_PIN", "").strip()
-
-
-def _check_pin(provided: str) -> bool:
-    expected = _get_pin()
-    if not expected:
-        return True
-    return hmac.compare_digest(provided.strip(), expected)
 
 
 def _update_env_file(updates: dict[str, str]) -> None:
@@ -98,9 +86,6 @@ class PanelHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _is_authorized(self) -> bool:
-        return _check_pin(self.headers.get("X-Panel-Pin", ""))
-
     def do_GET(self) -> None:
         if self.path in ("/", "/panel.html"):
             body = PANEL_HTML.read_bytes()
@@ -112,9 +97,6 @@ class PanelHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/state":
-            if not self._is_authorized():
-                self._send_json(401, {"error": "Unauthorized"})
-                return
             tok = kotak_token_status(auto_login=False)
             funds = available_kotak_funds() if tok.get("valid") else {"ok": False}
             mtm_pnl, positions = fetch_kotak_mtm_and_positions() if tok.get("valid") else (0.0, [])
@@ -148,17 +130,6 @@ class PanelHandler(BaseHTTPRequestHandler):
             data = json.loads(raw) if raw else {}
         except Exception:
             self._send_json(400, {"ok": False, "error": "Invalid JSON"})
-            return
-
-        if self.path == "/api/auth":
-            if _check_pin(str(data.get("pin", ""))):
-                self._send_json(200, {"ok": True})
-            else:
-                self._send_json(401, {"ok": False, "error": "Invalid PIN"})
-            return
-
-        if not self._is_authorized():
-            self._send_json(401, {"ok": False, "error": "Unauthorized"})
             return
 
         if self.path == "/api/settings":

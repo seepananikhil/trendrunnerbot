@@ -62,26 +62,9 @@
     .toast { margin-top: 10px; padding: 9px 12px; border-radius: 6px; font-size: 0.85rem; display: none; }
     .toast.ok { display: block; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #6ee7b7; }
     .toast.err { display: block; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; }
-    #loginOverlay {
-      position: fixed; inset: 0; background: rgba(11,15,23,0.96);
-      display: flex; align-items: center; justify-content: center; z-index: 50;
-    }
-    #loginBox { width: 100%; max-width: 360px; }
   </style>
 </head>
 <body>
-  <div id="loginOverlay">
-    <div id="loginBox" class="card">
-      <h2>Unlock Control Panel</h2>
-      <label for="pinInput">Panel PIN (<code>WEB_PANEL_PIN</code> in <code>.env</code>)</label>
-      <input id="pinInput" type="password" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')doLogin()" />
-      <div class="actions">
-        <button onclick="doLogin()" style="width:100%;">Unlock</button>
-      </div>
-      <div id="loginErr" class="toast err"></div>
-    </div>
-  </div>
-
   <div class="container">
     <header>
       <div>
@@ -197,10 +180,8 @@
   </div>
 
   <script>
-    let PIN = sessionStorage.getItem("panel_pin") || "";
-
     function headers() {
-      return { "Content-Type": "application/json", "X-Panel-Pin": PIN };
+      return { "Content-Type": "application/json" };
     }
 
     function showToast(id, msg, ok) {
@@ -209,27 +190,9 @@
       el.className = "toast " + (ok ? "ok" : "err");
     }
 
-    async function doLogin() {
-      PIN = document.getElementById("pinInput").value.trim();
-      const res = await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: PIN }) });
-      const data = await res.json();
-      if (data.ok) {
-        sessionStorage.setItem("panel_pin", PIN);
-        document.getElementById("loginOverlay").style.display = "none";
-        refreshState();
-      } else {
-        showToast("loginErr", data.error || "Invalid PIN", false);
-      }
-    }
-
     async function refreshState() {
-      const res = await fetch("/api/state", { headers: headers() });
-      if (res.status === 401) {
-        document.getElementById("loginOverlay").style.display = "flex";
-        return;
-      }
+      const res = await fetch("/api/state");
       const d = await res.json();
-      document.getElementById("loginOverlay").style.display = "none";
 
       const mode = (d.env.TRADING_MODE || "paper").toUpperCase();
       const mb = document.getElementById("modeBadge");
@@ -316,7 +279,7 @@
       refreshState();
     }
 
-    if (PIN) refreshState();
+    refreshState();
   </script>
 </body>
 </html>
