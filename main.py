@@ -126,20 +126,32 @@ def log_live_order_event(
     reason: str,
     mode: str,
     pnl_rs: float = 0.0,
+    signal_price: float = 0.0,
+    slippage: float = 0.0,
+    latency_ms: float = 0.0,
+    status: str = "FILLED",
 ) -> None:
     path = LIVE_DIR / f"live_orders_{today_str()}.csv"
     is_new = not path.exists()
     with path.open("a", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         if is_new:
-            w.writerow(["timestamp", "action", "symbol", "qty", "order_id", "fill_price", "reason", "mode", "pnl_rs"])
+            w.writerow([
+                "timestamp", "action", "symbol", "qty", "order_id",
+                "signal_price", "fill_price", "slippage", "latency_ms",
+                "status", "reason", "mode", "pnl_rs",
+            ])
         w.writerow([
             datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
             action,
             symbol,
             qty,
             order_id,
-            fill_price,
+            round(signal_price, 2),
+            round(fill_price, 2),
+            round(slippage, 2),
+            round(latency_ms, 1),
+            status,
             reason,
             mode,
             round(pnl_rs, 2),
@@ -260,6 +272,8 @@ def make_entry_handler(symbol: str, lot_size: int):
         qty = int(pos.get("base_lots", 1)) * lot_size
         product = os.getenv("ORDER_PRODUCT", "NRML").strip().upper() or "NRML"
         ex_seg = "bse_fo" if symbol.upper() == "SENSEX" else "nse_fo"
+        signal_px = float(pos.get("option_entry_price") or 0.0)
+        t0 = time.perf_counter()
         try:
             order_id, fill_px = place_kotak_order(
                 symbol=opt_symbol,
@@ -268,14 +282,24 @@ def make_entry_handler(symbol: str, lot_size: int):
                 product=product,
                 exchange_segment=ex_seg,
             )
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            slippage = (fill_px - signal_px) if (fill_px > 0 and signal_px > 0) else 0.0
             pos["live_order_id"] = order_id
             if fill_px > 0:
                 pos["option_entry_price"] = fill_px
-            log_live_order_event("BUY", opt_symbol, qty, order_id, fill_px, pos.get("stage", "ENTRY"), "LIVE")
-            logger.info(f"[{symbol}] LIVE BUY {opt_symbol} qty={qty} -> order_id={order_id} @ {fill_px}")
+            log_live_order_event(
+                "BUY", opt_symbol, qty, order_id, fill_px, pos.get("stage", "ENTRY"), "LIVE",
+                signal_price=signal_px, slippage=slippage, latency_ms=latency_ms, status="FILLED",
+            )
+            logger.info(f"[{symbol}] LIVE BUY {opt_symbol} qty={qty} -> order_id={order_id} @ {fill_px} (sig={signal_px}, slip={slippage:+.2f}, {latency_ms:.0f}ms)")
         except Exception as exc:
-            logger.error(f"[{symbol}] Live entry order failed: {exc}")
-            notify_system(f"Live Entry Failed ({symbol})", f"Contract: {opt_symbol}\nQty: {qty}\nError: {exc}", level="ERROR")
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            log_live_order_event(
+                "BUY", opt_symbol, qty, "", 0.0, pos.get("stage", "ENTRY"), "LIVE",
+                signal_price=signal_px, slippage=0.0, latency_ms=latency_ms, status=f"ERROR: {exc}",
+            )
+            logger.error(f"[{symbol}] Live entry order failed ({latency_ms:.0f}ms): {exc}")
+            notify_system(f"Live Entry API Hit ({symbol})", f"Contract: {opt_symbol}\nQty: {qty}\nSignal Px: ₹{signal_px:.2f}\nLatency: {latency_ms:.0f}ms\nResponse: {exc}", level="WARN")
 
     return _on_entry
 
@@ -285,13 +309,25 @@ def make_exit_handler(symbol: str, lot_size: int):
         if not is_live_mode():
             return
         opt_symbol = pos.get("option_symbol") or trade_result.get("option_symbol") or ""
-        if not opt_symbol or not pos.get("live_order_id"):
+        if (not opt_symbol or opt_symbol == pos.get("option")) and pos.get("strike"):
+            q = get_live_option_ltp(symbol, pos["strike"], pos.get("opt_type", "CE"))
+            if q and q.get("symbol"):
+                opt_symbol = q["symbol"]
+
+        if not opt_symbol:
+            err = f"Cannot hit live exit for {symbol}: unresolved option trading symbol."
+            logger.error(err)
+            notify_system("Live Exit Error", err, level="ERROR")
             return
 
         qty = int(trade_result.get("total_lots", pos.get("base_lots", 1))) * lot_size
         product = os.getenv("ORDER_PRODUCT", "NRML").strip().upper() or "NRML"
         ex_seg = "bse_fo" if symbol.upper() == "SENSEX" else "nse_fo"
+        signal_px = float(trade_result.get("option_exit_price") or 0.0)
+        pnl_rs = float(trade_result.get("pnl_rupees") or 0.0)
+        t0 = time.perf_counter()
         try:
+            # Always hit exit API even if entry position wasn't active, to capture slippage & latency
             order_id, fill_px = place_kotak_order(
                 symbol=opt_symbol,
                 qty=qty,
@@ -299,12 +335,21 @@ def make_exit_handler(symbol: str, lot_size: int):
                 product=product,
                 exchange_segment=ex_seg,
             )
-            pnl_rs = float(trade_result.get("pnl_rupees") or 0.0)
-            log_live_order_event("SELL", opt_symbol, qty, order_id, fill_px, trade_result.get("exit_reason", "EXIT"), "LIVE", pnl_rs)
-            logger.info(f"[{symbol}] LIVE SELL {opt_symbol} qty={qty} -> order_id={order_id} @ {fill_px}")
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            slippage = (signal_px - fill_px) if (fill_px > 0 and signal_px > 0) else 0.0
+            log_live_order_event(
+                "SELL", opt_symbol, qty, order_id, fill_px, trade_result.get("exit_reason", "EXIT"), "LIVE",
+                pnl_rs=pnl_rs, signal_price=signal_px, slippage=slippage, latency_ms=latency_ms, status="FILLED",
+            )
+            logger.info(f"[{symbol}] LIVE SELL {opt_symbol} qty={qty} -> order_id={order_id} @ {fill_px} (sig={signal_px}, slip={slippage:+.2f}, {latency_ms:.0f}ms)")
         except Exception as exc:
-            logger.error(f"[{symbol}] Live exit order failed: {exc}")
-            notify_system(f"CRITICAL: Live Exit Failed ({symbol})", f"Contract: {opt_symbol}\nQty: {qty}\nError: {exc}", level="ERROR")
+            latency_ms = (time.perf_counter() - t0) * 1000.0
+            log_live_order_event(
+                "SELL", opt_symbol, qty, "", 0.0, trade_result.get("exit_reason", "EXIT"), "LIVE",
+                pnl_rs=pnl_rs, signal_price=signal_px, slippage=0.0, latency_ms=latency_ms, status=f"ERROR: {exc}",
+            )
+            logger.error(f"[{symbol}] Live exit order failed ({latency_ms:.0f}ms): {exc}")
+            notify_system(f"Live Exit API Hit ({symbol})", f"Contract: {opt_symbol}\nQty: {qty}\nSignal Px: ₹{signal_px:.2f}\nLatency: {latency_ms:.0f}ms\nResponse: {exc}", level="WARN")
 
     return _on_exit
 
