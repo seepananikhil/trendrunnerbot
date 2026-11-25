@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status, place_kotak_order
+import requests
 from risk_guardian import (
     fetch_kotak_mtm_and_positions,
     is_risk_locked,
@@ -178,6 +179,28 @@ class PanelHandler(BaseHTTPRequestHandler):
                     return
                 send_telegram_message("✅ <b>Test Alert</b> from TrendRunner Control Panel.", blocking=True)
                 self._send_json(200, {"ok": True, "message": "Test alert sent to Telegram."})
+            elif action == "detect_chat_id":
+                tok = str(data.get("bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "")).strip()
+                if not tok:
+                    self._send_json(200, {"ok": False, "message": "Enter your Telegram Bot Token first."})
+                    return
+                try:
+                    r = requests.get(f"https://api.telegram.org/bot{tok}/getUpdates", timeout=8)
+                    j = r.json() if r.status_code == 200 else {}
+                    results = j.get("result") or []
+                    if not results:
+                        self._send_json(200, {"ok": False, "message": "No messages found. Send /start to your bot in Telegram, then click Detect again."})
+                        return
+                    latest = results[-1].get("message") or results[-1].get("edited_message") or {}
+                    chat = latest.get("chat") or {}
+                    cid = str(chat.get("id") or "").strip()
+                    uname = chat.get("username") or chat.get("first_name") or "User"
+                    if not cid:
+                        self._send_json(200, {"ok": False, "message": "Could not read Chat ID. Send /start to your bot and try again."})
+                        return
+                    self._send_json(200, {"ok": True, "chat_id": cid, "message": f"Detected Chat ID {cid} ({uname})!"})
+                except Exception as exc:
+                    self._send_json(500, {"ok": False, "message": f"Telegram lookup failed: {exc}"})
             elif action == "square_off":
                 _, open_pos = fetch_kotak_mtm_and_positions()
                 if not open_pos:

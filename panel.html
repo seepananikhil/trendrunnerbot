@@ -241,7 +241,13 @@
         <div><label for="neoMpin">MPIN</label><input id="neoMpin" type="password" placeholder="Keep existing" /></div>
         <div><label for="neoTotp">TOTP Secret</label><input id="neoTotp" type="password" placeholder="Keep existing" /></div>
         <div><label for="tgToken">Telegram Bot Token</label><input id="tgToken" type="password" placeholder="Keep existing" /></div>
-        <div><label for="tgChat">Telegram Chat ID</label><input id="tgChat" type="text" placeholder="Keep existing" /></div>
+        <div>
+          <label for="tgChat">Telegram Chat ID</label>
+          <div style="display:flex;gap:6px;">
+            <input id="tgChat" type="text" placeholder="Keep existing" />
+            <button type="button" class="secondary" style="white-space:nowrap;" onclick="detectChatId()">Detect</button>
+          </div>
+        </div>
       </div>
       <details class="guide">
         <summary>How to get these credentials</summary>
@@ -249,8 +255,8 @@
           <li><b>Kotak Consumer Key:</b> Log in to the Kotak Neo Trade API portal &rarr; <i>My Apps / API Keys</i> &rarr; copy the Consumer Key, and <b>whitelist this VM's static IP</b>.</li>
           <li><b>Kotak UCC &amp; Mobile:</b> Your 5-character Client Code (UCC) from Kotak Neo Profile, and registered mobile with <code>+91</code> (e.g. <code>+919876543210</code>).</li>
           <li><b>MPIN &amp; TOTP Secret:</b> Your 6-digit trading MPIN. For TOTP, enable TOTP 2FA in Kotak Neo and copy the <b>Base32 Secret Key</b> shown alongside the QR code.</li>
-          <li><b>Telegram Bot Token:</b> Message <code>@BotFather</code> on Telegram &rarr; send <code>/newbot</code> &rarr; copy the HTTP API token.</li>
-          <li><b>Telegram Chat ID:</b> Send <code>/start</code> to your new bot, then message <code>@userinfobot</code> to get your numeric Chat ID.</li>
+          <li><b>Telegram Bot Token:</b> Open <code>@BotFather</code> in Telegram &rarr; send <code>/newbot</code> &rarr; name it (e.g. <i>My TrendRunner Bot</i>) &rarr; copy the API token.</li>
+          <li><b>Telegram Chat ID:</b> Open your new bot in Telegram, send <code>/start</code>, then click <b>Detect</b> above to fill your Chat ID automatically.</li>
         </ul>
       </details>
       <div class="actions">
@@ -345,6 +351,16 @@
       const d = await res.json();
       showToast("actionToast", d.message || (d.ok ? "Done" : "Failed"), !!d.ok);
       refreshState();
+    }
+
+    async function detectChatId() {
+      const bot_token = document.getElementById("tgToken").value.trim();
+      const res = await fetch("/api/action", { method: "POST", headers: headers(), body: JSON.stringify({ action: "detect_chat_id", bot_token }) });
+      const d = await res.json();
+      if (d.ok && d.chat_id) {
+        document.getElementById("tgChat").value = d.chat_id;
+      }
+      showToast("credToast", d.message || (d.ok ? "Detected!" : "Failed"), !!d.ok);
     }
 
     async function exitPosition(payload) {
