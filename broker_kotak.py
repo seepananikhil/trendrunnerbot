@@ -108,6 +108,9 @@ def kotak_login(totp_code: Optional[str] = None, mpin: Optional[str] = None) -> 
             return {"ok": False, "error": "pyotp library is not installed"}
         try:
             clean_secret = totp_secret.replace(" ", "").strip().upper()
+            # Avoid 30s TOTP boundary expiry: wait for fresh window if <3s remaining
+            if not totp_code and (int(time.time()) % 30) >= 27:
+                time.sleep(3.5)
             active_totp = pyotp.TOTP(clean_secret).now()
         except Exception as exc:
             err = f"Failed to generate TOTP from secret: {exc}"
@@ -125,6 +128,24 @@ def kotak_login(totp_code: Optional[str] = None, mpin: Optional[str] = None) -> 
         err = f"Kotak TOTP login failed: {exc}"
         notify_system("Kotak Neo Login Failed", err, level="ERROR")
         return {"ok": False, "error": err}
+
+    # Retry once on 10506 (Invalid TOTP) in case of 30s boundary/clock skew
+    if (
+        isinstance(step1, dict)
+        and "data" not in step1
+        and "10506" in str(step1)
+        and not totp_code
+        and totp_secret
+    ):
+        time.sleep(3.0)
+        clean_secret = totp_secret.replace(" ", "").strip().upper()
+        active_totp = pyotp.TOTP(clean_secret).now()
+        try:
+            step1 = client.totp_login(mobile_number=mobile, ucc=ucc, totp=active_totp)
+        except Exception as exc:
+            err = f"Kotak TOTP login retry failed: {exc}"
+            notify_system("Kotak Neo Login Failed", err, level="ERROR")
+            return {"ok": False, "error": err}
 
     if not isinstance(step1, dict) or "data" not in step1:
         err = str(step1.get("error", "Invalid TOTP login response") if isinstance(step1, dict) else step1)
