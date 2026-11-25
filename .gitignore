@@ -1,0 +1,19 @@
+# Secrets & local config
+.env
+neo_config.json
+telegram_config.json
+
+# Runtime state, tokens, and logs
+data/
+logs/
+RISK_LOCK.json
+RISK_RESET.json
+STOP_TRADING
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
