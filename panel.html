@@ -3,49 +3,48 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TrendRunner — User Control Panel</title>
+  <title>TrendRunner — Execution Console</title>
   <style>
     :root {
-      --bg: #fafafa;
-      --card: #ffffff;
-      --card-sub: #f4f4f5;
-      --border: #e4e4e7;
-      --text: #09090b;
-      --muted: #71717a;
-      --primary: #18181b;
-      --primary-fg: #fafafa;
-      --primary-hover: #27272a;
-      --sec-bg: #f4f4f5;
-      --sec-hover: #e4e4e7;
-      --ok: #10b981;
-      --ok-bg: rgba(16, 185, 129, 0.12);
-      --ok-border: rgba(16, 185, 129, 0.35);
-      --ok-text: #047857;
-      --warn: #f59e0b;
-      --warn-bg: rgba(245, 158, 11, 0.12);
-      --warn-border: rgba(245, 158, 11, 0.35);
-      --warn-text: #b45309;
-      --err: #ef4444;
-      --err-bg: rgba(239, 68, 68, 0.1);
-      --err-border: rgba(239, 68, 68, 0.35);
-      --err-text: #dc2626;
-      --radius: 10px;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-muted: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #0f172a;
+      --primary-fg: #ffffff;
+      --primary-hover: #1e293b;
+      --ok: #059669;
+      --ok-bg: #ecfdf5;
+      --ok-border: #a7f3d0;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --warn-border: #fde68a;
+      --err: #dc2626;
+      --err-bg: #fef2f2;
+      --err-border: #fecaca;
+      --radius: 12px;
     }
     html.dark {
       --bg: #09090b;
-      --card: #111113;
-      --card-sub: #18181b;
+      --surface: #111113;
+      --surface-muted: #18181b;
       --border: #27272a;
-      --text: #fafafa;
+      --text: #f8fafc;
       --muted: #a1a1aa;
-      --primary: #fafafa;
-      --primary-fg: #18181b;
-      --primary-hover: #e4e4e7;
-      --sec-bg: #27272a;
-      --sec-hover: #3f3f46;
-      --ok-text: #6ee7b7;
-      --warn-text: #fcd34d;
-      --err-text: #fca5a5;
+      --primary: #f8fafc;
+      --primary-fg: #09090b;
+      --primary-hover: #e2e8f0;
+      --ok: #34d399;
+      --ok-bg: rgba(16, 185, 129, 0.12);
+      --ok-border: rgba(16, 185, 129, 0.3);
+      --warn: #fbbf24;
+      --warn-bg: rgba(245, 158, 11, 0.12);
+      --warn-border: rgba(245, 158, 11, 0.3);
+      --err: #f87171;
+      --err-bg: rgba(239, 68, 68, 0.12);
+      --err-border: rgba(239, 68, 68, 0.3);
     }
     * { box-sizing: border-box; }
     body {
@@ -53,237 +52,309 @@
       font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 24px 16px 48px;
+      -webkit-font-smoothing: antialiased;
       transition: background 0.15s, color 0.15s;
     }
-    .container { max-width: 940px; margin: 0 auto; }
-    header {
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+    }
+    .topbar-inner {
+      max-width: 980px;
+      margin: 0 auto;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
       flex-wrap: wrap;
-      gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--primary); color: var(--primary-fg);
+      display: grid; place-items: center; font-weight: 700; font-size: 0.9rem;
+    }
+    .brand-title { font-weight: 600; font-size: 1rem; letter-spacing: -0.01em; }
+    .brand-sub { font-size: 0.78rem; color: var(--muted); }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 0.74rem; font-weight: 600; letter-spacing: 0.03em;
+    }
+    .pill.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
+    .pill.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
+    .pill.err { background: var(--err-bg); color: var(--err); border: 1px solid var(--err-border); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    .main { max-width: 980px; margin: 24px auto 56px; padding: 0 20px; }
+    .tabs {
+      display: inline-flex; gap: 4px;
+      background: var(--surface-muted); padding: 4px;
+      border-radius: 10px; border: 1px solid var(--border);
       margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--border);
     }
-    h1 { margin: 0; font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; }
-    .subtitle { font-size: 0.84rem; color: var(--muted); margin-top: 2px; }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+    .tab {
+      background: transparent; border: none; color: var(--muted);
+      padding: 7px 16px; border-radius: 7px; font-size: 0.85rem;
+      font-weight: 500; cursor: pointer;
     }
-    .badge.ok { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-border); }
-    .badge.warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
-    .badge.err { background: var(--err-bg); color: var(--err-text); border: 1px solid var(--err-border); }
+    .tab.active {
+      background: var(--surface); color: var(--text);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    .banner {
+      border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+      border: 1px solid var(--border); background: var(--surface);
+      display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .banner.welcome { background: var(--ok-bg); border-color: var(--ok-border); }
+    .banner.setup { background: var(--warn-bg); border-color: var(--warn-border); }
+    .banner h3 { margin: 0 0 4px; font-size: 0.96rem; font-weight: 600; }
+    .banner p { margin: 0; font-size: 0.84rem; color: var(--muted); }
+
     .card {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px;
       margin-bottom: 16px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
     }
-    .card h2 { margin: 0 0 14px; font-size: 0.98rem; font-weight: 600; }
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
-    .stat-box {
-      background: var(--card-sub);
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+    .card-title { margin: 0; font-size: 0.96rem; font-weight: 600; }
+    .card-desc { margin: 2px 0 0; font-size: 0.82rem; color: var(--muted); }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+    .stat {
+      background: var(--surface-muted);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
+      border-radius: 9px;
+      padding: 14px 16px;
     }
-    .stat-label { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
-    .stat-val { font-size: 1.08rem; font-weight: 600; margin-top: 4px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-    label { display: block; font-size: 0.8rem; color: var(--muted); font-weight: 500; margin-bottom: 5px; }
+    .stat-label { font-size: 0.76rem; color: var(--muted); font-weight: 500; }
+    .stat-val { font-size: 1.15rem; font-weight: 600; margin-top: 6px; letter-spacing: -0.01em; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); font-weight: 500; margin-bottom: 6px; }
     input, select {
-      width: 100%;
-      padding: 8px 10px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      color: var(--text);
-      font-size: 0.88rem;
-      outline: none;
+      width: 100%; padding: 9px 11px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 0.88rem; outline: none;
     }
     input:focus, select:focus { border-color: var(--primary); }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    button {
-      cursor: pointer;
-      border: 1px solid transparent;
-      border-radius: 7px;
-      padding: 8px 14px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      background: var(--primary);
-      color: var(--primary-fg);
-      transition: background 0.15s, opacity 0.15s;
+
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    button.btn {
+      cursor: pointer; border: 1px solid transparent; border-radius: 8px;
+      padding: 8px 14px; font-size: 0.84rem; font-weight: 500;
+      background: var(--primary); color: var(--primary-fg);
+      transition: opacity 0.15s, background 0.15s;
     }
-    button:hover { background: var(--primary-hover); }
-    button.secondary {
-      background: var(--sec-bg);
-      color: var(--text);
-      border-color: var(--border);
-    }
-    button.secondary:hover { background: var(--sec-hover); }
-    button.danger { background: var(--err); color: #ffffff; }
-    button.danger:hover { opacity: 0.9; }
-    button.ok { background: var(--ok); color: #ffffff; }
-    button.ok:hover { opacity: 0.9; }
+    button.btn:hover { background: var(--primary-hover); }
+    button.btn.sec { background: var(--surface); color: var(--text); border-color: var(--border); }
+    button.btn.sec:hover { background: var(--surface-muted); }
+    button.btn.ok { background: var(--ok); color: #ffffff; }
+    button.btn.err { background: var(--err); color: #ffffff; }
+    button.btn:hover { opacity: 0.92; }
+
     table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 10px; }
-    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
-    th { color: var(--muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .pos-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem;
+    }
+    .pos-row:last-child { border-bottom: none; }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.82rem;
-      background: var(--card-sub);
-      padding: 1px 5px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
+      font-size: 0.8rem; background: var(--surface-muted);
+      padding: 2px 6px; border-radius: 5px; border: 1px solid var(--border);
     }
     details.guide {
-      margin-top: 12px;
-      font-size: 0.83rem;
-      color: var(--muted);
-      background: var(--card-sub);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
+      margin-top: 14px; font-size: 0.83rem; color: var(--muted);
+      background: var(--surface-muted); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px;
     }
     details.guide summary { cursor: pointer; color: var(--text); font-weight: 500; }
-    .toast { margin-top: 10px; padding: 9px 12px; border-radius: 7px; font-size: 0.84rem; display: none; }
-    .toast.ok { display: block; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok-text); }
-    .toast.err { display: block; background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); }
+    .toast { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.84rem; display: none; }
+    .toast.ok { display: block; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok); }
+    .toast.err { display: block; background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err); }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="logo">TR</div>
+        <div>
+          <div class="brand-title">TrendRunner</div>
+          <div class="brand-sub">Isolated Execution Console</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="modeBadge" class="pill warn"><span class="dot"></span><span>PAPER</span></span>
+        <button class="btn sec" id="themeBtn" onclick="toggleTheme()">Dark</button>
+        <button class="btn sec" onclick="refreshState()">Refresh</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Welcome / Onboarding Banner -->
+    <div id="statusBanner" class="banner setup">
       <div>
-        <h1>TrendRunner Control Panel</h1>
-        <div class="subtitle">Single-User Isolated Execution Engine</div>
+        <h3 id="bannerTitle">Complete Setup to Activate</h3>
+        <p id="bannerDesc">Connect your Kotak Neo account and Telegram bot in the Setup &amp; Settings tab.</p>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <span id="modeBadge" class="badge warn">PAPER</span>
-        <button class="secondary" id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
-        <button class="secondary" onclick="refreshState()">Refresh</button>
-      </div>
-    </header>
-
-    <!-- Live Status -->
-    <div class="card">
-      <h2>Live Status &amp; Controls</h2>
-      <div class="stats">
-        <div class="stat-box"><div class="stat-label">Kotak Session</div><div class="stat-val" id="stKotak">—</div></div>
-        <div class="stat-box"><div class="stat-label">Account Balance</div><div class="stat-val" id="stFunds">—</div></div>
-        <div class="stat-box"><div class="stat-label">Today's MTM P&amp;L</div><div class="stat-val" id="stPnl">—</div></div>
-        <div class="stat-box"><div class="stat-label">Engine State</div><div class="stat-val" id="stEngine">—</div></div>
-      </div>
-      <div class="actions">
-        <button class="secondary" onclick="doAction('pause')">Pause Entries</button>
-        <button class="ok" onclick="doAction('resume')">Resume Entries</button>
-        <button class="secondary" onclick="doAction('login')">Refresh Kotak Login</button>
-        <button class="secondary" onclick="doAction('test_telegram')">Test Telegram</button>
-        <button class="danger" onclick="if(confirm('Square off ALL open Kotak Neo positions at market?'))doAction('square_off')">Emergency Square-Off</button>
-      </div>
-      <div id="actionToast" class="toast"></div>
+      <button id="bannerBtn" class="btn" onclick="switchTab('settings')">Open Setup</button>
     </div>
 
-    <!-- Running & Closed Trades -->
-    <div class="card">
-      <h2>Running Trades &amp; Today's Closed Trades</h2>
-      <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No running trades.</div>
-      <div id="strategyWrap" style="font-size:0.86rem;color:var(--muted);margin-top:8px;"></div>
-      <table id="tradesTable" style="display:none;">
-        <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Reason</th><th>P&amp;L (₹)</th></tr></thead>
-        <tbody id="tradesBody"></tbody>
-      </table>
+    <div class="tabs">
+      <button class="tab active" id="tabOverview" onclick="switchTab('overview')">Overview</button>
+      <button class="tab" id="tabSettings" onclick="switchTab('settings')">Setup &amp; Settings</button>
     </div>
 
-    <!-- Execution & Risk Settings -->
-    <div class="card">
-      <h2>Execution &amp; Risk Settings</h2>
-      <div class="grid">
-        <div>
-          <label for="tradingMode">Trading Mode</label>
-          <select id="tradingMode">
-            <option value="paper">paper (Simulated fills)</option>
-            <option value="live">live (Real Kotak Neo orders)</option>
-          </select>
-        </div>
-        <div>
-          <label for="tradingLots">Lots per Trade</label>
-          <input id="tradingLots" type="number" min="1" max="50" />
-        </div>
-        <div>
-          <label for="maxDailyLoss">Max Daily Loss (INR)</label>
-          <input id="maxDailyLoss" type="number" min="100" step="100" />
-        </div>
+    <!-- OVERVIEW TAB -->
+    <section id="viewOverview">
+      <div class="stats" style="margin-bottom:16px;">
+        <div class="stat"><div class="stat-label">Broker Session</div><div class="stat-val" id="stKotak">—</div></div>
+        <div class="stat"><div class="stat-label">Account Balance</div><div class="stat-val" id="stFunds">—</div></div>
+        <div class="stat"><div class="stat-label">Today's MTM P&amp;L</div><div class="stat-val" id="stPnl">—</div></div>
+        <div class="stat"><div class="stat-label">Engine Status</div><div class="stat-val" id="stEngine">—</div></div>
       </div>
-      <div class="actions">
-        <button onclick="saveSettings(false)">Save Settings</button>
-      </div>
-      <div id="settingsToast" class="toast"></div>
-    </div>
 
-    <!-- Credentials -->
-    <div class="card">
-      <h2>Broker &amp; Telegram Credentials (Leave blank to keep existing)</h2>
-      <div class="grid">
-        <div><label for="neoKey">Kotak Consumer Key</label><input id="neoKey" type="text" placeholder="Keep existing" /></div>
-        <div><label for="neoUcc">Kotak UCC</label><input id="neoUcc" type="text" placeholder="Keep existing" /></div>
-        <div><label for="neoMobile">Mobile (+91...)</label><input id="neoMobile" type="text" placeholder="Keep existing" /></div>
-        <div><label for="neoMpin">MPIN</label><input id="neoMpin" type="password" placeholder="Keep existing" /></div>
-        <div><label for="neoTotp">TOTP Secret</label><input id="neoTotp" type="password" placeholder="Keep existing" /></div>
-        <div><label for="tgToken">Telegram Bot Token</label><input id="tgToken" type="password" placeholder="Keep existing" /></div>
-        <div>
-          <label for="tgChat">Telegram Chat ID</label>
-          <div style="display:flex;gap:6px;">
-            <input id="tgChat" type="text" placeholder="Keep existing" />
-            <button type="button" class="secondary" style="white-space:nowrap;" onclick="detectChatId()">Detect</button>
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Quick Controls</h2>
+            <p class="card-desc">Manage order execution, broker authentication, and alerts.</p>
           </div>
         </div>
+        <div class="btn-row" style="margin-top:0;">
+          <button class="btn sec" onclick="doAction('pause')">Pause Entries</button>
+          <button class="btn ok" onclick="doAction('resume')">Resume Entries</button>
+          <button class="btn sec" onclick="doAction('login')">Refresh Broker Session</button>
+          <button class="btn sec" onclick="doAction('test_telegram')">Send Test Alert</button>
+          <button class="btn err" onclick="if(confirm('Square off all open broker positions at market?'))doAction('square_off')">Square Off All</button>
+        </div>
+        <div id="actionToast" class="toast"></div>
       </div>
-      <details class="guide">
-        <summary>How to get these credentials</summary>
-        <ul style="margin:8px 0 0;padding-left:18px;line-height:1.6;">
-          <li><b>Kotak Consumer Key:</b> Log in to the Kotak Neo Trade API portal &rarr; <i>My Apps / API Keys</i> &rarr; copy the Consumer Key, and <b>whitelist this VM's static IP</b>.</li>
-          <li><b>Kotak UCC &amp; Mobile:</b> Your 5-character Client Code (UCC) from Kotak Neo Profile, and registered mobile with <code>+91</code> (e.g. <code>+919876543210</code>).</li>
-          <li><b>MPIN &amp; TOTP Secret:</b> Your 6-digit trading MPIN. For TOTP, enable TOTP 2FA in Kotak Neo and copy the <b>Base32 Secret Key</b> shown alongside the QR code.</li>
-          <li><b>Telegram Bot Token:</b> Open <code>@BotFather</code> in Telegram &rarr; send <code>/newbot</code> &rarr; name it (e.g. <i>My TrendRunner Bot</i>) &rarr; copy the API token.</li>
-          <li><b>Telegram Chat ID:</b> Open your new bot in Telegram, send <code>/start</code>, then click <b>Detect</b> above to fill your Chat ID automatically.</li>
-        </ul>
-      </details>
-      <div class="actions">
-        <button class="secondary" onclick="saveSettings(true)">Update Credentials</button>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Running Positions &amp; Today's Trades</h2>
+            <p class="card-desc">Live broker positions with individual market exit controls.</p>
+          </div>
+        </div>
+        <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No open positions.</div>
+        <div id="strategyWrap" style="font-size:0.86rem;color:var(--muted);margin-top:8px;"></div>
+        <table id="tradesTable" style="display:none;">
+          <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Reason</th><th>P&amp;L (₹)</th></tr></thead>
+          <tbody id="tradesBody"></tbody>
+        </table>
       </div>
-      <div id="credToast" class="toast"></div>
-    </div>
-  </div>
+    </section>
+
+    <!-- SETUP & SETTINGS TAB -->
+    <section id="viewSettings" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Execution &amp; Risk Limits</h2>
+            <p class="card-desc">Configure paper/live mode, position sizing, and daily loss protection.</p>
+          </div>
+        </div>
+        <div class="grid">
+          <div>
+            <label for="tradingMode">Trading Mode</label>
+            <select id="tradingMode">
+              <option value="paper">Paper (Simulated fills, live quotes)</option>
+              <option value="live">Live (Real Kotak Neo orders)</option>
+            </select>
+          </div>
+          <div>
+            <label for="tradingLots">Lots per Trade</label>
+            <input id="tradingLots" type="number" min="1" max="50" />
+          </div>
+          <div>
+            <label for="maxDailyLoss">Max Daily Loss (INR)</label>
+            <input id="maxDailyLoss" type="number" min="100" step="100" />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" onclick="saveSettings(false)">Save Preferences</button>
+        </div>
+        <div id="settingsToast" class="toast"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Broker &amp; Telegram Connection</h2>
+            <p class="card-desc">Credentials are stored locally on this VM. Leave any field blank to keep existing.</p>
+          </div>
+        </div>
+        <div class="grid">
+          <div><label for="neoKey">Kotak Consumer Key</label><input id="neoKey" type="text" placeholder="Keep existing" /></div>
+          <div><label for="neoUcc">Kotak UCC</label><input id="neoUcc" type="text" placeholder="Keep existing" /></div>
+          <div><label for="neoMobile">Registered Mobile (+91...)</label><input id="neoMobile" type="text" placeholder="Keep existing" /></div>
+          <div><label for="neoMpin">Trading MPIN</label><input id="neoMpin" type="password" placeholder="Keep existing" /></div>
+          <div><label for="neoTotp">TOTP Secret Key</label><input id="neoTotp" type="password" placeholder="Keep existing" /></div>
+          <div><label for="tgToken">Telegram Bot Token</label><input id="tgToken" type="password" placeholder="Keep existing" /></div>
+          <div>
+            <label for="tgChat">Telegram Chat ID</label>
+            <div style="display:flex;gap:6px;">
+              <input id="tgChat" type="text" placeholder="Keep existing" />
+              <button type="button" class="btn sec" style="white-space:nowrap;" onclick="detectChatId()">Detect</button>
+            </div>
+          </div>
+        </div>
+        <details class="guide">
+          <summary>Where to find these credentials</summary>
+          <ul style="margin:8px 0 0;padding-left:18px;line-height:1.65;">
+            <li><b>Kotak Consumer Key:</b> Log in to the Kotak Neo Trade API portal &rarr; <i>My Apps</i> &rarr; copy the Consumer Key and <b>whitelist this VM's static IP</b>.</li>
+            <li><b>Kotak UCC &amp; Mobile:</b> Your Client Code (UCC) from Kotak Neo Profile, and mobile with <code>+91</code> (e.g. <code>+919876543210</code>).</li>
+            <li><b>MPIN &amp; TOTP Secret:</b> Your 6-digit trading MPIN. Enable TOTP 2FA in Kotak Neo and copy the <b>Base32 Secret Key</b> shown alongside the QR code.</li>
+            <li><b>Telegram Bot Token:</b> Open <code>@BotFather</code> in Telegram &rarr; send <code>/newbot</code> &rarr; name it (e.g. <i>My TrendRunner Bot</i>) &rarr; copy the API token.</li>
+            <li><b>Telegram Chat ID:</b> Send <code>/start</code> to your new bot, then click <b>Detect</b> above to fill your Chat ID automatically.</li>
+          </ul>
+        </details>
+        <div class="btn-row">
+          <button class="btn" onclick="saveSettings(true)">Save &amp; Connect</button>
+        </div>
+        <div id="credToast" class="toast"></div>
+      </div>
+    </section>
+  </main>
 
   <script>
     function applyTheme(theme) {
       const isDark = theme === "dark";
       document.documentElement.classList.toggle("dark", isDark);
-      document.getElementById("themeBtn").textContent = isDark ? "☀️ Light" : "🌙 Dark";
+      document.getElementById("themeBtn").textContent = isDark ? "Light" : "Dark";
       localStorage.setItem("panel_theme", isDark ? "dark" : "light");
     }
 
     function toggleTheme() {
-      const isDark = document.documentElement.classList.contains("dark");
-      applyTheme(isDark ? "light" : "dark");
+      applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
     }
 
     applyTheme(localStorage.getItem("panel_theme") || "light");
 
-    function headers() {
-      return { "Content-Type": "application/json" };
+    function switchTab(tab) {
+      const isOver = tab === "overview";
+      document.getElementById("viewOverview").classList.toggle("hidden", !isOver);
+      document.getElementById("viewSettings").classList.toggle("hidden", isOver);
+      document.getElementById("tabOverview").classList.toggle("active", isOver);
+      document.getElementById("tabSettings").classList.toggle("active", !isOver);
     }
+
+    function headers() { return { "Content-Type": "application/json" }; }
 
     function showToast(id, msg, ok) {
       const el = document.getElementById(id);
@@ -291,35 +362,65 @@
       el.className = "toast " + (ok ? "ok" : "err");
     }
 
+    let _initializedTab = false;
+
     async function refreshState() {
       const res = await fetch("/api/state");
       const d = await res.json();
 
       const mode = (d.env.TRADING_MODE || "paper").toUpperCase();
       const mb = document.getElementById("modeBadge");
-      mb.textContent = mode;
-      mb.className = "badge " + (mode === "LIVE" ? "ok" : "warn");
+      mb.className = "pill " + (mode === "LIVE" ? "ok" : "warn");
+      mb.innerHTML = `<span class="dot"></span><span>${mode}</span>`;
 
-      document.getElementById("stKotak").textContent = d.kotak.valid ? `OK (${d.kotak.ucc || ""})` : "Expired";
+      const kotakOk = !!d.kotak.valid;
+      const tgOk = !!d.telegram_configured;
+      const banner = document.getElementById("statusBanner");
+      const bTitle = document.getElementById("bannerTitle");
+      const bDesc = document.getElementById("bannerDesc");
+      const bBtn = document.getElementById("bannerBtn");
+
+      if (kotakOk && tgOk) {
+        banner.className = "banner welcome";
+        const who = d.kotak.greeting_name || d.kotak.ucc || "Trader";
+        bTitle.textContent = `Welcome, ${who} — Everything is Connected`;
+        bDesc.textContent = `Broker session active (${d.kotak.ucc || ""}) and Telegram alerts are enabled. Your engine is running autonomously.`;
+        bBtn.classList.add("hidden");
+      } else {
+        banner.className = "banner setup";
+        const missing = [];
+        if (!kotakOk) missing.push("Kotak Neo");
+        if (!tgOk) missing.push("Telegram");
+        bTitle.textContent = `Setup Required: Connect ${missing.join(" & ")}`;
+        bDesc.textContent = "Enter your credentials in Setup & Settings to activate autonomous trading and alerts.";
+        bBtn.classList.remove("hidden");
+        if (!_initializedTab) switchTab("settings");
+      }
+      _initializedTab = true;
+
+      document.getElementById("stKotak").textContent = kotakOk ? `Connected (${d.kotak.ucc || ""})` : "Not Connected";
       document.getElementById("stFunds").textContent = d.funds.ok ? `₹${Number(d.funds.available_equity_funds || 0).toLocaleString("en-IN")}` : "—";
+
       const mtm = Number(d.mtm_pnl || 0);
       const pnlEl = document.getElementById("stPnl");
       pnlEl.textContent = `₹${mtm.toLocaleString("en-IN")}`;
-      pnlEl.style.color = mtm > 0 ? "var(--ok-text)" : (mtm < 0 ? "var(--err-text)" : "var(--text)");
-      document.getElementById("stEngine").textContent = d.risk_locked ? "RISK LOCKED" : (d.paused ? "PAUSED" : "ACTIVE");
+      pnlEl.style.color = mtm > 0 ? "var(--ok)" : (mtm < 0 ? "var(--err)" : "var(--text)");
+      document.getElementById("stEngine").textContent = d.risk_locked ? "Risk Locked" : (d.paused ? "Paused" : "Active");
 
-      document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";
-      document.getElementById("tradingLots").value = d.env.TRADING_LOTS || "1";
-      document.getElementById("maxDailyLoss").value = d.env.MAX_DAILY_LOSS || "2000";
+      if (document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "SELECT") {
+        document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";
+        document.getElementById("tradingLots").value = d.env.TRADING_LOTS || "1";
+        document.getElementById("maxDailyLoss").value = d.env.MAX_DAILY_LOSS || "2000";
+      }
 
       const posWrap = document.getElementById("positionsWrap");
       if (d.positions && d.positions.length) {
         posWrap.innerHTML = d.positions.map(p => {
-          const pnlColor = Number(p.pnl) >= 0 ? "var(--ok-text)" : "var(--err-text)";
+          const pnlColor = Number(p.pnl) >= 0 ? "var(--ok)" : "var(--err)";
           const payload = JSON.stringify({ action: "exit_broker_position", symbol: p.symbol, net_qty: p.net_qty, product: p.product, exchange_segment: p.exchange_segment }).replace(/'/g, "&#39;");
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          return `<div class="pos-row">
             <span><code>${p.symbol}</code> &bull; Qty: <b>${p.net_qty}</b> &bull; P&amp;L: <b style="color:${pnlColor}">₹${Number(p.pnl).toFixed(2)}</b></span>
-            <button class="danger" style="padding:5px 10px;font-size:0.78rem;" onclick='if(confirm("Exit ${p.symbol} at market?"))exitPosition(${payload})'>Exit</button>
+            <button class="btn err" style="padding:5px 12px;font-size:0.78rem;" onclick='if(confirm("Exit ${p.symbol} at market?"))exitPosition(${payload})'>Exit</button>
           </div>`;
         }).join("");
       } else {
@@ -329,7 +430,7 @@
       const stratWrap = document.getElementById("strategyWrap");
       if (d.running_strategy && d.running_strategy.length) {
         stratWrap.innerHTML = d.running_strategy.map(s => {
-          const pnlColor = Number(s.pnl_rs || 0) >= 0 ? "var(--ok-text)" : "var(--err-text)";
+          const pnlColor = Number(s.pnl_rs || 0) >= 0 ? "var(--ok)" : "var(--err)";
           return `<div style="padding:4px 0;">Active Tracked Trade: <b>${s.index}</b> (${s.side}) <code>${s.option}</code> &bull; Qty: ${s.qty} &bull; P&amp;L: <b style="color:${pnlColor}">₹${Number(s.pnl_rs || 0).toFixed(2)}</b></div>`;
         }).join("");
       } else {
@@ -357,9 +458,7 @@
       const bot_token = document.getElementById("tgToken").value.trim();
       const res = await fetch("/api/action", { method: "POST", headers: headers(), body: JSON.stringify({ action: "detect_chat_id", bot_token }) });
       const d = await res.json();
-      if (d.ok && d.chat_id) {
-        document.getElementById("tgChat").value = d.chat_id;
-      }
+      if (d.ok && d.chat_id) document.getElementById("tgChat").value = d.chat_id;
       showToast("credToast", d.message || (d.ok ? "Detected!" : "Failed"), !!d.ok);
     }
 
@@ -395,7 +494,10 @@
       const res = await fetch("/api/settings", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       const d = await res.json();
       showToast(includeCreds ? "credToast" : "settingsToast", d.message || (d.ok ? "Saved!" : "Error"), !!d.ok);
-      refreshState();
+      await refreshState();
+      if (includeCreds && d.ok) {
+        setTimeout(() => switchTab("overview"), 1200);
+      }
     }
 
     refreshState();

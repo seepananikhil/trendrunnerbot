@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable, Optional
 
-from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status, place_kotak_order
+from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status, place_kotak_order, reset_kotak_session
 import requests
 from risk_guardian import (
     fetch_kotak_mtm_and_positions,
@@ -121,6 +121,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                     })
             self._send_json(200, {
                 "kotak": tok,
+                "telegram_configured": is_configured(),
                 "funds": funds,
                 "mtm_pnl": mtm_pnl,
                 "positions": positions,
@@ -147,7 +148,25 @@ class PanelHandler(BaseHTTPRequestHandler):
             try:
                 env_updates = data.get("env") or {}
                 if env_updates:
-                    _update_env_file({k: str(v) for k, v in env_updates.items() if str(v).strip() != ""})
+                    clean_updates = {k: str(v) for k, v in env_updates.items() if str(v).strip() != ""}
+                    _update_env_file(clean_updates)
+
+                    neo_changed = any(k.startswith("NEO_") for k in clean_updates)
+                    tg_changed = any(k.startswith("TELEGRAM_") for k in clean_updates)
+
+                    if neo_changed:
+                        reset_kotak_session()
+                        k_res = kotak_login()
+                        if not k_res.get("ok"):
+                            self._send_json(200, {"ok": False, "message": f"Credentials saved, but Kotak login failed: {k_res.get('error')}"})
+                            return
+
+                    if tg_changed:
+                        from telegram_bot import start_telegram_bot
+                        if not any(t.name == "telegram-bot" and t.is_alive() for t in threading.enumerate()):
+                            start_telegram_bot()
+                        if is_configured():
+                            send_telegram_message("✅ <b>Credentials Updated</b>: Engine reconnected.", blocking=False)
 
                 self._send_json(200, {"ok": True, "message": "Settings saved and applied live!"})
             except Exception as exc:

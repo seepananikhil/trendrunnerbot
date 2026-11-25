@@ -45,6 +45,18 @@ _KOTAK_CLIENT: Optional[NeoAPI] = None
 _LAST_KOTAK_LOGIN_ATTEMPT: float = 0.0
 
 
+def reset_kotak_session() -> None:
+    """Clear cached in-memory client and saved token file (e.g. after credential update)."""
+    global _KOTAK_CLIENT, _LAST_KOTAK_LOGIN_ATTEMPT
+    _KOTAK_CLIENT = None
+    _LAST_KOTAK_LOGIN_ATTEMPT = 0.0
+    if KOTAK_TOKEN_FILE.exists():
+        try:
+            KOTAK_TOKEN_FILE.unlink()
+        except Exception:
+            pass
+
+
 def load_kotak_config() -> dict:
     """Load single-user Kotak Neo credentials from environment variables or neo_config.json."""
     cfg = {
