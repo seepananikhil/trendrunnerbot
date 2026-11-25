@@ -96,9 +96,9 @@
       <div id="actionToast" class="toast"></div>
     </div>
 
-    <!-- Execution & Strategy Settings -->
+    <!-- Execution & Risk Settings -->
     <div class="card">
-      <h2>Trading &amp; Strategy Settings</h2>
+      <h2>Execution &amp; Risk Settings</h2>
       <div class="grid">
         <div>
           <label for="tradingMode">Trading Mode</label>
@@ -112,40 +112,12 @@
           <input id="tradingLots" type="number" min="1" max="50" />
         </div>
         <div>
-          <label for="orderProduct">Order Product</label>
-          <select id="orderProduct">
-            <option value="NRML">NRML</option>
-            <option value="MIS">MIS</option>
-          </select>
-        </div>
-        <div>
           <label for="maxDailyLoss">Max Daily Loss (INR)</label>
           <input id="maxDailyLoss" type="number" min="100" step="100" />
         </div>
-        <div>
-          <label for="instruments">Active Instruments</label>
-          <select id="instruments">
-            <option value="BOTH">BOTH (NIFTY + SENSEX)</option>
-            <option value="NIFTY_ONLY">NIFTY_ONLY</option>
-            <option value="SENSEX_ONLY">SENSEX_ONLY</option>
-          </select>
-        </div>
-        <div>
-          <label for="sizingMode">Sizing Mode</label>
-          <select id="sizingMode">
-            <option value="fixed">fixed</option>
-            <option value="dynamic">dynamic</option>
-          </select>
-        </div>
-      </div>
-      <div class="grid" style="margin-top:10px;">
-        <label class="check-row"><input id="setupTrend" type="checkbox" /> Enable Trend Runner</label>
-        <label class="check-row"><input id="setupVix" type="checkbox" /> Enable VIX Trap</label>
-        <label class="check-row"><input id="dualAct" type="checkbox" /> Require Dual Activation</label>
-        <label class="check-row"><input id="dualEma" type="checkbox" /> Require Dual 5m EMA20 Exit</label>
       </div>
       <div class="actions">
-        <button onclick="saveSettings(false)">Save Strategy &amp; Risk Settings</button>
+        <button onclick="saveSettings(false)">Save Settings</button>
       </div>
       <div id="settingsToast" class="toast"></div>
     </div>
@@ -206,14 +178,7 @@
 
       document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";
       document.getElementById("tradingLots").value = d.env.TRADING_LOTS || "1";
-      document.getElementById("orderProduct").value = d.env.ORDER_PRODUCT || "NRML";
       document.getElementById("maxDailyLoss").value = d.env.MAX_DAILY_LOSS || "2000";
-      document.getElementById("instruments").value = d.portfolio.trading_instruments || "BOTH";
-      document.getElementById("sizingMode").value = d.env.SIZING_MODE || d.portfolio.sizing_mode || "fixed";
-      document.getElementById("setupTrend").checked = !!(d.portfolio.setups || {}).trend_runner;
-      document.getElementById("setupVix").checked = !!(d.portfolio.setups || {}).vix_trap;
-      document.getElementById("dualAct").checked = d.portfolio.require_dual_activation !== false;
-      document.getElementById("dualEma").checked = d.portfolio.require_dual_ema20_cross !== false;
 
       const posWrap = document.getElementById("positionsWrap");
       if (d.positions && d.positions.length) {
@@ -244,19 +209,7 @@
         env: {
           TRADING_MODE: document.getElementById("tradingMode").value,
           TRADING_LOTS: document.getElementById("tradingLots").value,
-          ORDER_PRODUCT: document.getElementById("orderProduct").value,
           MAX_DAILY_LOSS: document.getElementById("maxDailyLoss").value,
-          SIZING_MODE: document.getElementById("sizingMode").value,
-        },
-        portfolio: {
-          trading_instruments: document.getElementById("instruments").value,
-          sizing_mode: document.getElementById("sizingMode").value,
-          require_dual_activation: document.getElementById("dualAct").checked,
-          require_dual_ema20_cross: document.getElementById("dualEma").checked,
-          setups: {
-            trend_runner: document.getElementById("setupTrend").checked,
-            vix_trap: document.getElementById("setupVix").checked,
-          },
         },
       };
       if (includeCreds) {

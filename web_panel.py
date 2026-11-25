@@ -38,7 +38,7 @@ PORTFOLIO_PATH = ROOT / "portfolio_config.json"
 STOP_FILE = ROOT / "STOP_TRADING"
 IST = timezone(timedelta(hours=5, minutes=30))
 
-_ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "ORDER_PRODUCT", "MAX_DAILY_LOSS", "SIZING_MODE")
+_ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "MAX_DAILY_LOSS")
 
 
 def _update_env_file(updates: dict[str, str]) -> None:
@@ -101,12 +101,6 @@ class PanelHandler(BaseHTTPRequestHandler):
             funds = available_kotak_funds() if tok.get("valid") else {"ok": False}
             mtm_pnl, positions = fetch_kotak_mtm_and_positions() if tok.get("valid") else (0.0, [])
             locked, _ = is_risk_locked()
-            portfolio = {}
-            if PORTFOLIO_PATH.exists():
-                try:
-                    portfolio = json.loads(PORTFOLIO_PATH.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
             env_safe = {k: os.getenv(k, "") for k in _ENV_SAFE_KEYS}
             self._send_json(200, {
                 "kotak": tok,
@@ -116,7 +110,6 @@ class PanelHandler(BaseHTTPRequestHandler):
                 "risk_locked": locked,
                 "paused": STOP_FILE.exists(),
                 "env": env_safe,
-                "portfolio": portfolio,
                 "trades": _read_today_trades(),
             })
             return
@@ -137,16 +130,6 @@ class PanelHandler(BaseHTTPRequestHandler):
                 env_updates = data.get("env") or {}
                 if env_updates:
                     _update_env_file({k: str(v) for k, v in env_updates.items() if str(v).strip() != ""})
-
-                port_updates = data.get("portfolio") or {}
-                if port_updates and PORTFOLIO_PATH.exists():
-                    cur = json.loads(PORTFOLIO_PATH.read_text(encoding="utf-8"))
-                    for k in ("trading_instruments", "sizing_mode", "require_dual_activation", "require_dual_ema20_cross"):
-                        if k in port_updates:
-                            cur[k] = port_updates[k]
-                    if "setups" in port_updates and isinstance(port_updates["setups"], dict):
-                        cur.setdefault("setups", {}).update(port_updates["setups"])
-                    PORTFOLIO_PATH.write_text(json.dumps(cur, indent=2), encoding="utf-8")
 
                 self._send_json(200, {"ok": True, "message": "Settings saved and applied live!"})
             except Exception as exc:
