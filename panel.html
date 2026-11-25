@@ -134,6 +134,16 @@
         <div><label for="tgToken">Telegram Bot Token</label><input id="tgToken" type="password" placeholder="Keep existing" /></div>
         <div><label for="tgChat">Telegram Chat ID</label><input id="tgChat" type="text" placeholder="Keep existing" /></div>
       </div>
+      <details style="margin-top:12px;font-size:0.83rem;color:var(--muted);background:#0d131d;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+        <summary style="cursor:pointer;color:#93c5fd;font-weight:500;">How to get these credentials</summary>
+        <ul style="margin:8px 0 0;padding-left:18px;line-height:1.6;">
+          <li><b>Kotak Consumer Key:</b> Log in to the Kotak Neo Trade API portal &rarr; <i>My Apps / API Keys</i> &rarr; copy the Consumer Key, and <b>whitelist this VM's static IP</b>.</li>
+          <li><b>Kotak UCC &amp; Mobile:</b> Your 5-character Client Code (UCC) from Kotak Neo Profile, and registered mobile with <code>+91</code> (e.g. <code>+919876543210</code>).</li>
+          <li><b>MPIN &amp; TOTP Secret:</b> Your 6-digit trading MPIN. For TOTP, enable TOTP 2FA in Kotak Neo and copy the <b>Base32 Secret Key</b> shown alongside the QR code (for hands-free morning auto-login).</li>
+          <li><b>Telegram Bot Token:</b> Message <code>@BotFather</code> on Telegram &rarr; send <code>/newbot</code> &rarr; copy the HTTP API token.</li>
+          <li><b>Telegram Chat ID:</b> Send <code>/start</code> to your new bot, then message <code>@userinfobot</code> to get your numeric Chat ID.</li>
+        </ul>
+      </details>
       <div class="actions">
         <button class="secondary" onclick="saveSettings(true)">Update Credentials</button>
       </div>
