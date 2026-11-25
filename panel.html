@@ -6,62 +6,159 @@
   <title>TrendRunner — User Control Panel</title>
   <style>
     :root {
-      --bg: #0b0f17;
-      --card: #131a26;
-      --border: #233044;
-      --text: #e6edf3;
-      --muted: #8b9bb4;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
+      --bg: #fafafa;
+      --card: #ffffff;
+      --card-sub: #f4f4f5;
+      --border: #e4e4e7;
+      --text: #09090b;
+      --muted: #71717a;
+      --primary: #18181b;
+      --primary-fg: #fafafa;
+      --primary-hover: #27272a;
+      --sec-bg: #f4f4f5;
+      --sec-hover: #e4e4e7;
       --ok: #10b981;
+      --ok-bg: rgba(16, 185, 129, 0.12);
+      --ok-border: rgba(16, 185, 129, 0.35);
+      --ok-text: #047857;
       --warn: #f59e0b;
+      --warn-bg: rgba(245, 158, 11, 0.12);
+      --warn-border: rgba(245, 158, 11, 0.35);
+      --warn-text: #b45309;
       --err: #ef4444;
+      --err-bg: rgba(239, 68, 68, 0.1);
+      --err-border: rgba(239, 68, 68, 0.35);
+      --err-text: #dc2626;
+      --radius: 10px;
+    }
+    html.dark {
+      --bg: #09090b;
+      --card: #111113;
+      --card-sub: #18181b;
+      --border: #27272a;
+      --text: #fafafa;
+      --muted: #a1a1aa;
+      --primary: #fafafa;
+      --primary-fg: #18181b;
+      --primary-hover: #e4e4e7;
+      --sec-bg: #27272a;
+      --sec-hover: #3f3f46;
+      --ok-text: #6ee7b7;
+      --warn-text: #fcd34d;
+      --err-text: #fca5a5;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 20px 16px 48px;
+      padding: 24px 16px 48px;
+      transition: background 0.15s, color 0.15s;
     }
-    .container { max-width: 920px; margin: 0 auto; }
-    header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
-    h1 { margin: 0; font-size: 1.4rem; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
-    .badge.ok { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.35); }
-    .badge.warn { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.35); }
-    .badge.err { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
-    .card h2 { margin: 0 0 12px; font-size: 1rem; color: #dbeafe; }
-    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
-    .stat-box { background: #0d131d; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
-    .stat-label { font-size: 0.75rem; color: var(--muted); }
-    .stat-val { font-size: 1.05rem; font-weight: 600; margin-top: 4px; }
+    .container { max-width: 940px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { margin: 0; font-size: 1.35rem; font-weight: 600; letter-spacing: -0.02em; }
+    .subtitle { font-size: 0.84rem; color: var(--muted); margin-top: 2px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .badge.ok { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-border); }
+    .badge.warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
+    .badge.err { background: var(--err-bg); color: var(--err-text); border: 1px solid var(--err-border); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    .card h2 { margin: 0 0 14px; font-size: 0.98rem; font-weight: 600; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
+    .stat-box {
+      background: var(--card-sub);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .stat-label { font-size: 0.75rem; color: var(--muted); font-weight: 500; }
+    .stat-val { font-size: 1.08rem; font-weight: 600; margin-top: 4px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-    label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); font-weight: 500; margin-bottom: 5px; }
     input, select {
-      width: 100%; padding: 8px 10px; background: #0d131d; border: 1px solid var(--border);
-      border-radius: 6px; color: var(--text); font-size: 0.9rem; outline: none;
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 0.88rem;
+      outline: none;
     }
-    input:focus, select:focus { border-color: var(--accent); }
-    .check-row { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
-    .check-row input { width: auto; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    input:focus, select:focus { border-color: var(--primary); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
     button {
-      cursor: pointer; border: none; border-radius: 6px; padding: 9px 14px;
-      font-size: 0.88rem; font-weight: 500; background: var(--accent); color: #fff;
+      cursor: pointer;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: var(--primary);
+      color: var(--primary-fg);
+      transition: background 0.15s, opacity 0.15s;
     }
-    button:hover { background: var(--accent-hover); }
-    button.secondary { background: #1d2738; color: var(--text); border: 1px solid var(--border); }
-    button.danger { background: var(--err); color: #fff; }
-    button.ok { background: var(--ok); color: #052e1f; font-weight: 600; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 8px; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
-    th { color: var(--muted); font-weight: 500; }
-    .toast { margin-top: 10px; padding: 9px 12px; border-radius: 6px; font-size: 0.85rem; display: none; }
-    .toast.ok { display: block; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #6ee7b7; }
-    .toast.err { display: block; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; }
+    button:hover { background: var(--primary-hover); }
+    button.secondary {
+      background: var(--sec-bg);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    button.secondary:hover { background: var(--sec-hover); }
+    button.danger { background: var(--err); color: #ffffff; }
+    button.danger:hover { opacity: 0.9; }
+    button.ok { background: var(--ok); color: #ffffff; }
+    button.ok:hover { opacity: 0.9; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 10px; }
+    th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.82rem;
+      background: var(--card-sub);
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    details.guide {
+      margin-top: 12px;
+      font-size: 0.83rem;
+      color: var(--muted);
+      background: var(--card-sub);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    details.guide summary { cursor: pointer; color: var(--text); font-weight: 500; }
+    .toast { margin-top: 10px; padding: 9px 12px; border-radius: 7px; font-size: 0.84rem; display: none; }
+    .toast.ok { display: block; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok-text); }
+    .toast.err { display: block; background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err-text); }
   </style>
 </head>
 <body>
@@ -69,10 +166,11 @@
     <header>
       <div>
         <h1>TrendRunner Control Panel</h1>
-        <div style="font-size:0.82rem;color:var(--muted);" id="vmIp">Single-User Isolated Instance</div>
+        <div class="subtitle">Single-User Isolated Execution Engine</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span id="modeBadge" class="badge warn">PAPER</span>
+        <button class="secondary" id="themeBtn" onclick="toggleTheme()">🌙 Dark</button>
         <button class="secondary" onclick="refreshState()">Refresh</button>
       </div>
     </header>
@@ -94,6 +192,17 @@
         <button class="danger" onclick="if(confirm('Square off ALL open Kotak Neo positions at market?'))doAction('square_off')">Emergency Square-Off</button>
       </div>
       <div id="actionToast" class="toast"></div>
+    </div>
+
+    <!-- Running & Closed Trades -->
+    <div class="card">
+      <h2>Running Trades &amp; Today's Closed Trades</h2>
+      <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No running trades.</div>
+      <div id="strategyWrap" style="font-size:0.86rem;color:var(--muted);margin-top:8px;"></div>
+      <table id="tradesTable" style="display:none;">
+        <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Reason</th><th>P&amp;L (₹)</th></tr></thead>
+        <tbody id="tradesBody"></tbody>
+      </table>
     </div>
 
     <!-- Execution & Risk Settings -->
@@ -134,12 +243,12 @@
         <div><label for="tgToken">Telegram Bot Token</label><input id="tgToken" type="password" placeholder="Keep existing" /></div>
         <div><label for="tgChat">Telegram Chat ID</label><input id="tgChat" type="text" placeholder="Keep existing" /></div>
       </div>
-      <details style="margin-top:12px;font-size:0.83rem;color:var(--muted);background:#0d131d;border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
-        <summary style="cursor:pointer;color:#93c5fd;font-weight:500;">How to get these credentials</summary>
+      <details class="guide">
+        <summary>How to get these credentials</summary>
         <ul style="margin:8px 0 0;padding-left:18px;line-height:1.6;">
           <li><b>Kotak Consumer Key:</b> Log in to the Kotak Neo Trade API portal &rarr; <i>My Apps / API Keys</i> &rarr; copy the Consumer Key, and <b>whitelist this VM's static IP</b>.</li>
           <li><b>Kotak UCC &amp; Mobile:</b> Your 5-character Client Code (UCC) from Kotak Neo Profile, and registered mobile with <code>+91</code> (e.g. <code>+919876543210</code>).</li>
-          <li><b>MPIN &amp; TOTP Secret:</b> Your 6-digit trading MPIN. For TOTP, enable TOTP 2FA in Kotak Neo and copy the <b>Base32 Secret Key</b> shown alongside the QR code (for hands-free morning auto-login).</li>
+          <li><b>MPIN &amp; TOTP Secret:</b> Your 6-digit trading MPIN. For TOTP, enable TOTP 2FA in Kotak Neo and copy the <b>Base32 Secret Key</b> shown alongside the QR code.</li>
           <li><b>Telegram Bot Token:</b> Message <code>@BotFather</code> on Telegram &rarr; send <code>/newbot</code> &rarr; copy the HTTP API token.</li>
           <li><b>Telegram Chat ID:</b> Send <code>/start</code> to your new bot, then message <code>@userinfobot</code> to get your numeric Chat ID.</li>
         </ul>
@@ -149,20 +258,23 @@
       </div>
       <div id="credToast" class="toast"></div>
     </div>
-
-    <!-- Open Positions & Recent Trades -->
-    <div class="card">
-      <h2>Running Trades &amp; Today's Closed Trades</h2>
-      <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No running trades.</div>
-      <div id="strategyWrap" style="font-size:0.86rem;color:var(--muted);margin-top:8px;"></div>
-      <table id="tradesTable" style="display:none;">
-        <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Reason</th><th>P&amp;L (₹)</th></tr></thead>
-        <tbody id="tradesBody"></tbody>
-      </table>
-    </div>
   </div>
 
   <script>
+    function applyTheme(theme) {
+      const isDark = theme === "dark";
+      document.documentElement.classList.toggle("dark", isDark);
+      document.getElementById("themeBtn").textContent = isDark ? "☀️ Light" : "🌙 Dark";
+      localStorage.setItem("panel_theme", isDark ? "dark" : "light");
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains("dark");
+      applyTheme(isDark ? "light" : "dark");
+    }
+
+    applyTheme(localStorage.getItem("panel_theme") || "light");
+
     function headers() {
       return { "Content-Type": "application/json" };
     }
@@ -184,7 +296,10 @@
 
       document.getElementById("stKotak").textContent = d.kotak.valid ? `OK (${d.kotak.ucc || ""})` : "Expired";
       document.getElementById("stFunds").textContent = d.funds.ok ? `₹${Number(d.funds.available_equity_funds || 0).toLocaleString("en-IN")}` : "—";
-      document.getElementById("stPnl").textContent = `₹${Number(d.mtm_pnl || 0).toLocaleString("en-IN")}`;
+      const mtm = Number(d.mtm_pnl || 0);
+      const pnlEl = document.getElementById("stPnl");
+      pnlEl.textContent = `₹${mtm.toLocaleString("en-IN")}`;
+      pnlEl.style.color = mtm > 0 ? "var(--ok-text)" : (mtm < 0 ? "var(--err-text)" : "var(--text)");
       document.getElementById("stEngine").textContent = d.risk_locked ? "RISK LOCKED" : (d.paused ? "PAUSED" : "ACTIVE");
 
       document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";
@@ -194,9 +309,9 @@
       const posWrap = document.getElementById("positionsWrap");
       if (d.positions && d.positions.length) {
         posWrap.innerHTML = d.positions.map(p => {
-          const pnlColor = Number(p.pnl) >= 0 ? "var(--ok)" : "var(--err)";
+          const pnlColor = Number(p.pnl) >= 0 ? "var(--ok-text)" : "var(--err-text)";
           const payload = JSON.stringify({ action: "exit_broker_position", symbol: p.symbol, net_qty: p.net_qty, product: p.product, exchange_segment: p.exchange_segment }).replace(/'/g, "&#39;");
-          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
             <span><code>${p.symbol}</code> &bull; Qty: <b>${p.net_qty}</b> &bull; P&amp;L: <b style="color:${pnlColor}">₹${Number(p.pnl).toFixed(2)}</b></span>
             <button class="danger" style="padding:5px 10px;font-size:0.78rem;" onclick='if(confirm("Exit ${p.symbol} at market?"))exitPosition(${payload})'>Exit</button>
           </div>`;
@@ -208,7 +323,7 @@
       const stratWrap = document.getElementById("strategyWrap");
       if (d.running_strategy && d.running_strategy.length) {
         stratWrap.innerHTML = d.running_strategy.map(s => {
-          const pnlColor = Number(s.pnl_rs || 0) >= 0 ? "var(--ok)" : "var(--err)";
+          const pnlColor = Number(s.pnl_rs || 0) >= 0 ? "var(--ok-text)" : "var(--err-text)";
           return `<div style="padding:4px 0;">Active Tracked Trade: <b>${s.index}</b> (${s.side}) <code>${s.option}</code> &bull; Qty: ${s.qty} &bull; P&amp;L: <b style="color:${pnlColor}">₹${Number(s.pnl_rs || 0).toFixed(2)}</b></div>`;
         }).join("");
       } else {
