@@ -507,7 +507,7 @@ def main() -> None:
 
     start_risk_guardian(STOP_EVENT)
     start_telegram_bot(STOP_EVENT, status_provider=get_status_summary)
-    start_web_panel(STOP_EVENT)
+    start_web_panel(STOP_EVENT, engines=LIVE_ENGINES)
     threading.Thread(target=scheduler_loop, daemon=True, name="scheduler").start()
     threading.Thread(target=strategy_runner_loop, args=("NIFTY",), daemon=True, name="strategy-nifty").start()
     threading.Thread(target=strategy_runner_loop, args=("SENSEX",), daemon=True, name="strategy-sensex").start()

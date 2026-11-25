@@ -82,7 +82,7 @@
       <h2>Live Status &amp; Controls</h2>
       <div class="stats">
         <div class="stat-box"><div class="stat-label">Kotak Session</div><div class="stat-val" id="stKotak">—</div></div>
-        <div class="stat-box"><div class="stat-label">Available Margin</div><div class="stat-val" id="stFunds">—</div></div>
+        <div class="stat-box"><div class="stat-label">Account Balance</div><div class="stat-val" id="stFunds">—</div></div>
         <div class="stat-box"><div class="stat-label">Today's MTM P&amp;L</div><div class="stat-val" id="stPnl">—</div></div>
         <div class="stat-box"><div class="stat-label">Engine State</div><div class="stat-val" id="stEngine">—</div></div>
       </div>
@@ -152,8 +152,9 @@
 
     <!-- Open Positions & Recent Trades -->
     <div class="card">
-      <h2>Open Broker Positions &amp; Today's Trades</h2>
-      <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No open positions.</div>
+      <h2>Running Trades &amp; Today's Closed Trades</h2>
+      <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No running trades.</div>
+      <div id="strategyWrap" style="font-size:0.86rem;color:var(--muted);margin-top:8px;"></div>
       <table id="tradesTable" style="display:none;">
         <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Reason</th><th>P&amp;L (₹)</th></tr></thead>
         <tbody id="tradesBody"></tbody>
@@ -192,9 +193,26 @@
 
       const posWrap = document.getElementById("positionsWrap");
       if (d.positions && d.positions.length) {
-        posWrap.innerHTML = d.positions.map(p => `<div>• <code>${p.symbol}</code> | Qty: <b>${p.net_qty}</b> | P&amp;L: <b>₹${Number(p.pnl).toFixed(2)}</b></div>`).join("");
+        posWrap.innerHTML = d.positions.map(p => {
+          const pnlColor = Number(p.pnl) >= 0 ? "var(--ok)" : "var(--err)";
+          const payload = JSON.stringify({ action: "exit_broker_position", symbol: p.symbol, net_qty: p.net_qty, product: p.product, exchange_segment: p.exchange_segment }).replace(/'/g, "&#39;");
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+            <span><code>${p.symbol}</code> &bull; Qty: <b>${p.net_qty}</b> &bull; P&amp;L: <b style="color:${pnlColor}">₹${Number(p.pnl).toFixed(2)}</b></span>
+            <button class="danger" style="padding:5px 10px;font-size:0.78rem;" onclick='if(confirm("Exit ${p.symbol} at market?"))exitPosition(${payload})'>Exit</button>
+          </div>`;
+        }).join("");
       } else {
         posWrap.textContent = "No open broker positions.";
+      }
+
+      const stratWrap = document.getElementById("strategyWrap");
+      if (d.running_strategy && d.running_strategy.length) {
+        stratWrap.innerHTML = d.running_strategy.map(s => {
+          const pnlColor = Number(s.pnl_rs || 0) >= 0 ? "var(--ok)" : "var(--err)";
+          return `<div style="padding:4px 0;">Active Tracked Trade: <b>${s.index}</b> (${s.side}) <code>${s.option}</code> &bull; Qty: ${s.qty} &bull; P&amp;L: <b style="color:${pnlColor}">₹${Number(s.pnl_rs || 0).toFixed(2)}</b></div>`;
+        }).join("");
+      } else {
+        stratWrap.textContent = "";
       }
 
       const tbl = document.getElementById("tradesTable");
@@ -211,6 +229,13 @@
       const res = await fetch("/api/action", { method: "POST", headers: headers(), body: JSON.stringify({ action }) });
       const d = await res.json();
       showToast("actionToast", d.message || (d.ok ? "Done" : "Failed"), !!d.ok);
+      refreshState();
+    }
+
+    async function exitPosition(payload) {
+      const res = await fetch("/api/action", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
+      const d = await res.json();
+      showToast("actionToast", d.message || (d.ok ? "Exited" : "Exit failed"), !!d.ok);
       refreshState();
     }
 
@@ -243,6 +268,7 @@
     }
 
     refreshState();
+    setInterval(refreshState, 5000);
   </script>
 </body>
 </html>

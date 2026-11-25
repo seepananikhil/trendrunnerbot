@@ -19,9 +19,9 @@ import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
-from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status
+from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status, place_kotak_order
 from risk_guardian import (
     fetch_kotak_mtm_and_positions,
     is_risk_locked,
@@ -39,6 +39,7 @@ STOP_FILE = ROOT / "STOP_TRADING"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 _ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "MAX_DAILY_LOSS")
+_ENGINES_REF: dict = {}
 
 
 def _update_env_file(updates: dict[str, str]) -> None:
@@ -102,11 +103,27 @@ class PanelHandler(BaseHTTPRequestHandler):
             mtm_pnl, positions = fetch_kotak_mtm_and_positions() if tok.get("valid") else (0.0, [])
             locked, _ = is_risk_locked()
             env_safe = {k: os.getenv(k, "") for k in _ENV_SAFE_KEYS}
+            running_strategy = []
+            for sym_key, eng in _ENGINES_REF.items():
+                pos = getattr(eng, "active_position", None)
+                if pos:
+                    lot_sz = getattr(eng, "lot_size", 65 if sym_key == "nifty" else 20)
+                    lots = int(pos.get("base_lots", 1)) + (1 if pos.get("pyramided") else 0)
+                    running_strategy.append({
+                        "index": sym_key.upper(),
+                        "side": pos.get("side"),
+                        "option": pos.get("option_symbol") or pos.get("option"),
+                        "qty": lots * lot_sz,
+                        "entry_price": pos.get("option_entry_price") or pos.get("entry_price"),
+                        "pnl_rs": pos.get("real_pnl_rs", 0.0),
+                        "sl": pos.get("current_sl"),
+                    })
             self._send_json(200, {
                 "kotak": tok,
                 "funds": funds,
                 "mtm_pnl": mtm_pnl,
                 "positions": positions,
+                "running_strategy": running_strategy,
                 "risk_locked": locked,
                 "paused": STOP_FILE.exists(),
                 "env": env_safe,
@@ -168,6 +185,24 @@ class PanelHandler(BaseHTTPRequestHandler):
                     return
                 square_off_all_kotak_positions(open_pos, "WEB_PANEL_EMERGENCY_SQUARE_OFF")
                 self._send_json(200, {"ok": True, "message": f"Square-off sent for {len(open_pos)} open position(s)."})
+            elif action == "exit_broker_position":
+                sym = str(data.get("symbol", "")).strip()
+                net_qty = int(data.get("net_qty", 0) or 0)
+                if not sym or net_qty == 0:
+                    self._send_json(400, {"ok": False, "message": "Invalid position symbol or quantity."})
+                    return
+                side = -1 if net_qty > 0 else 1
+                try:
+                    oid, fill_px = place_kotak_order(
+                        symbol=sym,
+                        qty=abs(net_qty),
+                        side=side,
+                        product=str(data.get("product", "NRML")),
+                        exchange_segment=data.get("exchange_segment") or None,
+                    )
+                    self._send_json(200, {"ok": True, "message": f"Exited {sym} (Order ID: {oid} @ ₹{fill_px:.2f})."})
+                except Exception as exc:
+                    self._send_json(500, {"ok": False, "message": f"Exit failed for {sym}: {exc}"})
             else:
                 self._send_json(400, {"ok": False, "message": "Unknown action"})
             return
@@ -178,7 +213,10 @@ class PanelHandler(BaseHTTPRequestHandler):
         pass
 
 
-def start_web_panel(stop_event: Optional[threading.Event] = None) -> Optional[threading.Thread]:
+def start_web_panel(stop_event: Optional[threading.Event] = None, engines: Optional[dict] = None) -> Optional[threading.Thread]:
+    global _ENGINES_REF
+    if engines is not None:
+        _ENGINES_REF = engines
     enabled = os.getenv("WEB_PANEL_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
     if not enabled:
         logger.info("Web control panel disabled (WEB_PANEL_ENABLED=false).")
