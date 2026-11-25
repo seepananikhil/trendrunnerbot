@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrendRunner — User Control Panel</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card: #131a26;
+      --border: #233044;
+      --text: #e6edf3;
+      --muted: #8b9bb4;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px 16px 48px;
+    }
+    .container { max-width: 920px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 1.4rem; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+    .badge.ok { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.35); }
+    .badge.warn { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.35); }
+    .badge.err { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .card h2 { margin: 0 0 12px; font-size: 1rem; color: #dbeafe; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
+    .stat-box { background: #0d131d; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .stat-label { font-size: 0.75rem; color: var(--muted); }
+    .stat-val { font-size: 1.05rem; font-weight: 600; margin-top: 4px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+    input, select {
+      width: 100%; padding: 8px 10px; background: #0d131d; border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: 0.9rem; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .check-row { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+    .check-row input { width: auto; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    button {
+      cursor: pointer; border: none; border-radius: 6px; padding: 9px 14px;
+      font-size: 0.88rem; font-weight: 500; background: var(--accent); color: #fff;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary { background: #1d2738; color: var(--text); border: 1px solid var(--border); }
+    button.danger { background: var(--err); color: #fff; }
+    button.ok { background: var(--ok); color: #052e1f; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; }
+    .toast { margin-top: 10px; padding: 9px 12px; border-radius: 6px; font-size: 0.85rem; display: none; }
+    .toast.ok { display: block; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.35); color: #6ee7b7; }
+    .toast.err { display: block; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; }
+    #loginOverlay {
+      position: fixed; inset: 0; background: rgba(11,15,23,0.96);
+      display: flex; align-items: center; justify-content: center; z-index: 50;
+    }
+    #loginBox { width: 100%; max-width: 360px; }
+  </style>
+</head>
+<body>
+  <div id="loginOverlay">
+    <div id="loginBox" class="card">
+      <h2>Unlock Control Panel</h2>
+      <label for="pinInput">Panel PIN (<code>WEB_PANEL_PIN</code> in <code>.env</code>)</label>
+      <input id="pinInput" type="password" placeholder="Enter PIN" onkeydown="if(event.key==='Enter')doLogin()" />
+      <div class="actions">
+        <button onclick="doLogin()" style="width:100%;">Unlock</button>
+      </div>
+      <div id="loginErr" class="toast err"></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <header>
+      <div>
+        <h1>TrendRunner Control Panel</h1>
+        <div style="font-size:0.82rem;color:var(--muted);" id="vmIp">Single-User Isolated Instance</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="modeBadge" class="badge warn">PAPER</span>
+        <button class="secondary" onclick="refreshState()">Refresh</button>
+      </div>
+    </header>
+
+    <!-- Live Status -->
+    <div class="card">
+      <h2>Live Status &amp; Controls</h2>
+      <div class="stats">
+        <div class="stat-box"><div class="stat-label">Kotak Session</div><div class="stat-val" id="stKotak">—</div></div>
+        <div class="stat-box"><div class="stat-label">Available Margin</div><div class="stat-val" id="stFunds">—</div></div>
+        <div class="stat-box"><div class="stat-label">Today's MTM P&amp;L</div><div class="stat-val" id="stPnl">—</div></div>
+        <div class="stat-box"><div class="stat-label">Engine State</div><div class="stat-val" id="stEngine">—</div></div>
+      </div>
+      <div class="actions">
+        <button class="secondary" onclick="doAction('pause')">Pause Entries</button>
+        <button class="ok" onclick="doAction('resume')">Resume Entries</button>
+        <button class="secondary" onclick="doAction('login')">Refresh Kotak Login</button>
+        <button class="secondary" onclick="doAction('test_telegram')">Test Telegram</button>
+        <button class="danger" onclick="if(confirm('Square off ALL open Kotak Neo positions at market?'))doAction('square_off')">Emergency Square-Off</button>
+      </div>
+      <div id="actionToast" class="toast"></div>
+    </div>
+
+    <!-- Execution & Strategy Settings -->
+    <div class="card">
+      <h2>Trading &amp; Strategy Settings</h2>
+      <div class="grid">
+        <div>
+          <label for="tradingMode">Trading Mode</label>
+          <select id="tradingMode">
+            <option value="paper">paper (Simulated fills)</option>
+            <option value="live">live (Real Kotak Neo orders)</option>
+          </select>
+        </div>
+        <div>
+          <label for="tradingLots">Lots per Trade</label>
+          <input id="tradingLots" type="number" min="1" max="50" />
+        </div>
+        <div>
+          <label for="orderProduct">Order Product</label>
+          <select id="orderProduct">
+            <option value="NRML">NRML</option>
+            <option value="MIS">MIS</option>
+          </select>
+        </div>
+        <div>
+          <label for="maxDailyLoss">Max Daily Loss (INR)</label>
+          <input id="maxDailyLoss" type="number" min="100" step="100" />
+        </div>
+        <div>
+          <label for="instruments">Active Instruments</label>
+          <select id="instruments">
+            <option value="BOTH">BOTH (NIFTY + SENSEX)</option>
+            <option value="NIFTY_ONLY">NIFTY_ONLY</option>
+            <option value="SENSEX_ONLY">SENSEX_ONLY</option>
+          </select>
+        </div>
+        <div>
+          <label for="sizingMode">Sizing Mode</label>
+          <select id="sizingMode">
+            <option value="fixed">fixed</option>
+            <option value="dynamic">dynamic</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:10px;">
+        <label class="check-row"><input id="setupTrend" type="checkbox" /> Enable Trend Runner</label>
+        <label class="check-row"><input id="setupVix" type="checkbox" /> Enable VIX Trap</label>
+        <label class="check-row"><input id="dualAct" type="checkbox" /> Require Dual Activation</label>
+        <label class="check-row"><input id="dualEma" type="checkbox" /> Require Dual 5m EMA20 Exit</label>
+      </div>
+      <div class="actions">
+        <button onclick="saveSettings(false)">Save Strategy &amp; Risk Settings</button>
+      </div>
+      <div id="settingsToast" class="toast"></div>
+    </div>
+
+    <!-- Credentials -->
+    <div class="card">
+      <h2>Broker &amp; Telegram Credentials (Leave blank to keep existing)</h2>
+      <div class="grid">
+        <div><label for="neoKey">Kotak Consumer Key</label><input id="neoKey" type="text" placeholder="Keep existing" /></div>
+        <div><label for="neoUcc">Kotak UCC</label><input id="neoUcc" type="text" placeholder="Keep existing" /></div>
+        <div><label for="neoMobile">Mobile (+91...)</label><input id="neoMobile" type="text" placeholder="Keep existing" /></div>
+        <div><label for="neoMpin">MPIN</label><input id="neoMpin" type="password" placeholder="Keep existing" /></div>
+        <div><label for="neoTotp">TOTP Secret</label><input id="neoTotp" type="password" placeholder="Keep existing" /></div>
+        <div><label for="tgToken">Telegram Bot Token</label><input id="tgToken" type="password" placeholder="Keep existing" /></div>
+        <div><label for="tgChat">Telegram Chat ID</label><input id="tgChat" type="text" placeholder="Keep existing" /></div>
+      </div>
+      <div class="actions">
+        <button class="secondary" onclick="saveSettings(true)">Update Credentials</button>
+      </div>
+      <div id="credToast" class="toast"></div>
+    </div>
+
+    <!-- Open Positions & Recent Trades -->
+    <div class="card">
+      <h2>Open Broker Positions &amp; Today's Trades</h2>
+      <div id="positionsWrap" style="font-size:0.86rem;color:var(--muted);">No open positions.</div>
+      <table id="tradesTable" style="display:none;">
+        <thead><tr><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Reason</th><th>P&amp;L (₹)</th></tr></thead>
+        <tbody id="tradesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let PIN = sessionStorage.getItem("panel_pin") || "";
+
+    function headers() {
+      return { "Content-Type": "application/json", "X-Panel-Pin": PIN };
+    }
+
+    function showToast(id, msg, ok) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = "toast " + (ok ? "ok" : "err");
+    }
+
+    async function doLogin() {
+      PIN = document.getElementById("pinInput").value.trim();
+      const res = await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: PIN }) });
+      const data = await res.json();
+      if (data.ok) {
+        sessionStorage.setItem("panel_pin", PIN);
+        document.getElementById("loginOverlay").style.display = "none";
+        refreshState();
+      } else {
+        showToast("loginErr", data.error || "Invalid PIN", false);
+      }
+    }
+
+    async function refreshState() {
+      const res = await fetch("/api/state", { headers: headers() });
+      if (res.status === 401) {
+        document.getElementById("loginOverlay").style.display = "flex";
+        return;
+      }
+      const d = await res.json();
+      document.getElementById("loginOverlay").style.display = "none";
+
+      const mode = (d.env.TRADING_MODE || "paper").toUpperCase();
+      const mb = document.getElementById("modeBadge");
+      mb.textContent = mode;
+      mb.className = "badge " + (mode === "LIVE" ? "ok" : "warn");
+
+      document.getElementById("stKotak").textContent = d.kotak.valid ? `OK (${d.kotak.ucc || ""})` : "Expired";
+      document.getElementById("stFunds").textContent = d.funds.ok ? `₹${Number(d.funds.available_equity_funds || 0).toLocaleString("en-IN")}` : "—";
+      document.getElementById("stPnl").textContent = `₹${Number(d.mtm_pnl || 0).toLocaleString("en-IN")}`;
+      document.getElementById("stEngine").textContent = d.risk_locked ? "RISK LOCKED" : (d.paused ? "PAUSED" : "ACTIVE");
+
+      document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";
+      document.getElementById("tradingLots").value = d.env.TRADING_LOTS || "1";
+      document.getElementById("orderProduct").value = d.env.ORDER_PRODUCT || "NRML";
+      document.getElementById("maxDailyLoss").value = d.env.MAX_DAILY_LOSS || "2000";
+      document.getElementById("instruments").value = d.portfolio.trading_instruments || "BOTH";
+      document.getElementById("sizingMode").value = d.env.SIZING_MODE || d.portfolio.sizing_mode || "fixed";
+      document.getElementById("setupTrend").checked = !!(d.portfolio.setups || {}).trend_runner;
+      document.getElementById("setupVix").checked = !!(d.portfolio.setups || {}).vix_trap;
+      document.getElementById("dualAct").checked = d.portfolio.require_dual_activation !== false;
+      document.getElementById("dualEma").checked = d.portfolio.require_dual_ema20_cross !== false;
+
+      const posWrap = document.getElementById("positionsWrap");
+      if (d.positions && d.positions.length) {
+        posWrap.innerHTML = d.positions.map(p => `<div>• <code>${p.symbol}</code> | Qty: <b>${p.net_qty}</b> | P&amp;L: <b>₹${Number(p.pnl).toFixed(2)}</b></div>`).join("");
+      } else {
+        posWrap.textContent = "No open broker positions.";
+      }
+
+      const tbl = document.getElementById("tradesTable");
+      const tbody = document.getElementById("tradesBody");
+      if (d.trades && d.trades.length) {
+        tbl.style.display = "table";
+        tbody.innerHTML = d.trades.map(t => `<tr><td>${t.symbol || ""}</td><td>${t.side || ""}</td><td>${t.entry_price || ""}</td><td>${t.exit_price || ""}</td><td>${t.exit_reason || ""}</td><td>₹${Number(t.pnl_rupees || 0).toFixed(2)}</td></tr>`).join("");
+      } else {
+        tbl.style.display = "none";
+      }
+    }
+
+    async function doAction(action) {
+      const res = await fetch("/api/action", { method: "POST", headers: headers(), body: JSON.stringify({ action }) });
+      const d = await res.json();
+      showToast("actionToast", d.message || (d.ok ? "Done" : "Failed"), !!d.ok);
+      refreshState();
+    }
+
+    async function saveSettings(includeCreds) {
+      const payload = {
+        env: {
+          TRADING_MODE: document.getElementById("tradingMode").value,
+          TRADING_LOTS: document.getElementById("tradingLots").value,
+          ORDER_PRODUCT: document.getElementById("orderProduct").value,
+          MAX_DAILY_LOSS: document.getElementById("maxDailyLoss").value,
+          SIZING_MODE: document.getElementById("sizingMode").value,
+        },
+        portfolio: {
+          trading_instruments: document.getElementById("instruments").value,
+          sizing_mode: document.getElementById("sizingMode").value,
+          require_dual_activation: document.getElementById("dualAct").checked,
+          require_dual_ema20_cross: document.getElementById("dualEma").checked,
+          setups: {
+            trend_runner: document.getElementById("setupTrend").checked,
+            vix_trap: document.getElementById("setupVix").checked,
+          },
+        },
+      };
+      if (includeCreds) {
+        const credMap = {
+          NEO_CONSUMER_KEY: "neoKey", NEO_UCC: "neoUcc", NEO_MOBILE_NUMBER: "neoMobile",
+          NEO_MPIN: "neoMpin", NEO_TOTP_SECRET: "neoTotp",
+          TELEGRAM_BOT_TOKEN: "tgToken", TELEGRAM_CHAT_ID: "tgChat",
+        };
+        for (const [k, elId] of Object.entries(credMap)) {
+          const val = document.getElementById(elId).value.trim();
+          if (val) payload.env[k] = val;
+        }
+        if (payload.env.TELEGRAM_BOT_TOKEN || payload.env.TELEGRAM_CHAT_ID) {
+          payload.env.TELEGRAM_ENABLED = "true";
+        }
+      }
+      const res = await fetch("/api/settings", { method: "POST", headers: headers(), body: JSON.stringify(payload) });
+      const d = await res.json();
+      showToast(includeCreds ? "credToast" : "settingsToast", d.message || (d.ok ? "Saved!" : "Error"), !!d.ok);
+      refreshState();
+    }
+
+    if (PIN) refreshState();
+  </script>
+</body>
+</html>
