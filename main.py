@@ -315,6 +315,8 @@ def make_entry_handler(symbol: str, lot_size: int):
             post_q = get_live_option_ltp(symbol, pos["strike"], pos["opt_type"], bypass_cache=True) if pos.get("strike") else None
             post_px = float((post_q or {}).get("ltp") or 0.0)
             slip = (post_px - signal_px) if (post_px > 0 and signal_px > 0) else 0.0
+            if post_px > 0:
+                pos["option_entry_price"] = post_px
             log_live_order_event(
                 "BUY", opt_symbol, qty, "", post_px, pos.get("stage", "ENTRY"), "LIVE",
                 signal_price=signal_px, slippage=slip, latency_ms=latency_ms, status=f"REJECTED_SIM: {exc}",
