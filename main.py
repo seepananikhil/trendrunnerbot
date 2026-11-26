@@ -360,7 +360,7 @@ def strategy_runner_loop(symbol: str) -> None:
     sym_upper = symbol.upper()
     sym_lower = symbol.lower()
     lot_size = 20 if sym_upper == "SENSEX" else 65
-    ratchet_key = "sensex_spot_ratchet_settings" if sym_upper == "SENSEX" else "spot_ratchet_settings"
+    settings_key = "sensex_settings" if sym_upper == "SENSEX" else "nifty_settings"
     trailing_key = "sensex_trailing_mode" if sym_upper == "SENSEX" else "nifty_trailing_mode"
 
     cur_day = today_str()
@@ -406,7 +406,7 @@ def strategy_runner_loop(symbol: str) -> None:
             setups_cfg = port_cfg.get("setups", {})
             enable_trend = bool(setups_cfg.get("trend_runner", True))
             enable_trap = bool(setups_cfg.get("vix_trap", True))
-            ratchet = port_cfg.get(ratchet_key, {})
+            inst_cfg = port_cfg.get(settings_key, {})
 
             if engine is None:
                 lots_cfg = int(os.getenv("TRADING_LOTS", "1") or 1)
@@ -414,27 +414,15 @@ def strategy_runner_loop(symbol: str) -> None:
                 engine = TrendRunnerPaperEngine(
                     symbol=sym_upper,
                     trailing_mode=str(port_cfg.get(trailing_key, port_cfg.get("trailing_mode", "ema20_5m"))).lower(),
-                    sl_points=float(ratchet.get("initial_sl_pts", 200.0 if sym_upper == "SENSEX" else 50.0)),
+                    sl_points=float(inst_cfg.get("initial_sl_pts", 200.0 if sym_upper == "SENSEX" else 50.0)),
                     sl_mode="fixed",
                     lots=lots_cfg,
                     sizing_mode=sizing_cfg,
                     max_trades_per_day=int(port_cfg.get("max_trades_per_day", 3)),
-                    call_cutoff_time=str(ratchet.get("call_cutoff_time", "10:45")),
-                    reentry_cooloff_bars=int(ratchet.get("reentry_cooloff_bars", 20)),
-                    vix_th=float(ratchet.get("vix_th", 1.8)),
-                    vix_call_th=float(ratchet.get("vix_call_th", 1.8)),
-                    r1_trigger=float(ratchet.get("tier1_trigger_pts", 70.0)),
-                    r1_lock=float(ratchet.get("tier1_lock_pts", 20.0)),
-                    r2_trigger=float(ratchet.get("tier2_trigger_pts", 110.0)),
-                    r2_lock=float(ratchet.get("tier2_lock_pts", 50.0)),
-                    r3_trigger=float(ratchet.get("tier3_trigger_pts", 180.0)),
-                    r3_lock=float(ratchet.get("tier3_lock_pts", 110.0)),
-                    r4_trigger=float(ratchet.get("tier4_trigger_pts", 230.0)),
-                    r4_lock=float(ratchet.get("tier4_lock_pts", 165.0)),
-                    r5_trigger=float(ratchet.get("tier5_trigger_pts", 280.0)),
-                    r5_lock=float(ratchet.get("tier5_lock_pts", 220.0)),
-                    r6_trigger=float(ratchet.get("tier6_trigger_pts", 330.0)),
-                    r6_lock=float(ratchet.get("tier6_lock_pts", 270.0)),
+                    call_cutoff_time=str(inst_cfg.get("call_cutoff_time", "10:45")),
+                    reentry_cooloff_bars=int(inst_cfg.get("reentry_cooloff_bars", 20)),
+                    vix_th=float(inst_cfg.get("vix_th", 1.8)),
+                    vix_call_th=float(inst_cfg.get("vix_call_th", 1.8)),
                     reentry=True,
                     notify_telegram=True,
                     fetch_live_quotes=True,

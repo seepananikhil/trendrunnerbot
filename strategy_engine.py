@@ -50,9 +50,9 @@ from apex_duo_rules import (
 )
 
 try:
-    from telegram_notifier import notify_trade_entry, notify_ratchet, notify_trade_exit
+    from telegram_notifier import notify_trade_entry, notify_trade_exit
 except ImportError:
-    notify_trade_entry = notify_ratchet = notify_trade_exit = None
+    notify_trade_entry = notify_trade_exit = None
 
 IST = timezone(timedelta(hours=5, minutes=30))
 ROOT = Path(__file__).resolve().parent
@@ -478,134 +478,6 @@ class TrendRunnerPaperEngine:
             fav = (h - entry_px) if sig == "LONG" else (entry_px - l)
             if fav > pos["max_fav"]:
                 pos["max_fav"] = fav
-
-            if self.trailing_mode != "ema20_5m":
-            # --- Tier 0: Pre-Ratchet Retention Guard ---
-                # Guard A: +35 pts (Nifty) / +115 pts (Sensex) -> Pull SL to Entry - 12 (Nifty) / Entry - 40 (Sensex)
-                t0_trig_1 = 35.0 if not (self.symbol == "SENSEX") else 115.0
-                t0_lk_1 = -12.0 if not (self.symbol == "SENSEX") else -40.0
-                if pos["max_fav"] >= t0_trig_1:
-                    t0_level_1 = entry_px + t0_lk_1 if sig == "LONG" else entry_px - t0_lk_1
-                    if (sig == "LONG" and t0_level_1 > curr_sl) or (sig == "SHORT" and t0_level_1 < curr_sl):
-                        pos["current_sl"] = t0_level_1
-                        curr_sl = t0_level_1
-                        if self.log_trades and pos.get("last_ratchet") != "Tier 0A":
-                            print(f"  [TIER 0A RETENTION GUARD] Reached +{pos['max_fav']:.1f} pts! Stop pulled to {curr_sl:.2f} (Max loss capped to {abs(t0_lk_1):.1f} pts)")
-                        pos["last_ratchet"] = "Tier 0A"
-
-                # Guard B: +50 pts (Nifty) / +180 pts (Sensex) -> Lock Entry + 5 (Nifty) / Entry + 15 (Sensex)
-                t0_trig_2 = 50.0 if not (self.symbol == "SENSEX") else 180.0
-                t0_lk_2 = 5.0 if not (self.symbol == "SENSEX") else 15.0
-                if pos["max_fav"] >= t0_trig_2:
-                    t0_level_2 = entry_px + t0_lk_2 if sig == "LONG" else entry_px - t0_lk_2
-                    if (sig == "LONG" and t0_level_2 > curr_sl) or (sig == "SHORT" and t0_level_2 < curr_sl):
-                        pos["current_sl"] = t0_level_2
-                        curr_sl = t0_level_2
-                        if self.log_trades and pos.get("last_ratchet") != "Tier 0B":
-                            print(f"  [TIER 0B BREAKEVEN LOCK] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking Breakeven +{t0_lk_2:.1f} pts)")
-                        pos["last_ratchet"] = "Tier 0B"
-
-                # --- 3-Tier Progressive Ratchet Lock ---
-                # Tier 1: +70 pts -> Lock +20 pts & Risk-Free Pyramiding
-                if self.r1_trigger is not None and pos["max_fav"] >= self.r1_trigger:
-                    r1_level = entry_px + self.r1_lock if sig == "LONG" else entry_px - self.r1_lock
-                    if (sig == "LONG" and r1_level > curr_sl) or (sig == "SHORT" and r1_level < curr_sl):
-                        pos["current_sl"] = r1_level
-                        curr_sl = r1_level
-                        if self.log_trades:
-                            print(f"  [RATCHET TIER 1 LOCKED] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking +{self.r1_lock:.1f} pts profit)")
-                        if pos.get("last_ratchet") != "Tier 1":
-                            pos["last_ratchet"] = "Tier 1"
-                            if self.notify_telegram and notify_ratchet:
-                                pyr_txt = f"Added Lot 2 at {pyr_e:.2f} (Risk: Zero)" if pos.get("pyramided") else ""
-                                notify_ratchet(self.symbol, sig, f"Tier 1 (+{self.r1_trigger:.0f} pts)", pos["max_fav"], curr_sl, self.r1_lock, pyramided=pos.get("pyramided", False), pyramid_info=pyr_txt)
-                    
-                        # Risk-Free Pyramiding: Add Lot 2 with stop offset by locked profit
-                        if self.pyramid and not pos.get("pyramided", False):
-                            pyr_e = entry_px + self.r1_trigger if sig == "LONG" else entry_px - self.r1_trigger
-                            pyr_sl = pyr_e - self.r1_lock if sig == "LONG" else pyr_e + self.r1_lock
-                            pos["pyramided"] = True
-                            pos["pyramid_entry_px"] = pyr_e
-                            pos["pyramid_sl"] = pyr_sl
-                            if self.log_trades:
-                                print(f"  [RISK-FREE PYRAMID ADDED] Added Lot 2 at {pyr_e:.2f} with SL at {pyr_sl:.2f} (Net Combined Risk: ZERO)")
-
-                # Tier 2: +130 pts -> Lock +60 pts
-                if self.r2_trigger is not None and pos["max_fav"] >= self.r2_trigger:
-                    r2_level = entry_px + self.r2_lock if sig == "LONG" else entry_px - self.r2_lock
-                    if (sig == "LONG" and r2_level > curr_sl) or (sig == "SHORT" and r2_level < curr_sl):
-                        pos["current_sl"] = r2_level
-                        curr_sl = r2_level
-                        if pos.get("pyramided"):
-                            pyr_e = pos["pyramid_entry_px"]
-                            pos["pyramid_sl"] = pyr_e + 10.0 if sig == "LONG" else pyr_e - 10.0
-                        if self.log_trades:
-                            print(f"  [RATCHET TIER 2 LOCKED] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking +{self.r2_lock:.1f} pts profit)")
-                        if pos.get("last_ratchet") != "Tier 2":
-                            pos["last_ratchet"] = "Tier 2"
-                            if self.notify_telegram and notify_ratchet:
-                                notify_ratchet(self.symbol, sig, f"Tier 2 (+{self.r2_trigger:.0f} pts)", pos["max_fav"], curr_sl, self.r2_lock)
-
-                # Tier 3: +180 pts -> Lock +110 pts
-                if self.r3_trigger is not None and pos["max_fav"] >= self.r3_trigger:
-                    r3_level = entry_px + self.r3_lock if sig == "LONG" else entry_px - self.r3_lock
-                    if (sig == "LONG" and r3_level > curr_sl) or (sig == "SHORT" and r3_level < curr_sl):
-                        pos["current_sl"] = r3_level
-                        curr_sl = r3_level
-                        if pos.get("pyramided"):
-                            pyr_e = pos["pyramid_entry_px"]
-                            pos["pyramid_sl"] = pyr_e + 50.0 if sig == "LONG" else pyr_e - 50.0
-                        if self.log_trades:
-                            print(f"  [RATCHET TIER 3 LOCKED] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking +{self.r3_lock:.1f} pts profit)")
-                        if pos.get("last_ratchet") != "Tier 3":
-                            pos["last_ratchet"] = "Tier 3"
-                            if self.notify_telegram and notify_ratchet:
-                                notify_ratchet(self.symbol, sig, f"Tier 3 (+{self.r3_trigger:.0f} pts)", pos["max_fav"], curr_sl, self.r3_lock)
-
-                # Tier 4: +230 pts -> Lock +165 pts
-                if self.r4_trigger is not None and pos["max_fav"] >= self.r4_trigger:
-                    r4_level = entry_px + self.r4_lock if sig == "LONG" else entry_px - self.r4_lock
-                    if (sig == "LONG" and r4_level > curr_sl) or (sig == "SHORT" and r4_level < curr_sl):
-                        pos["current_sl"] = r4_level
-                        curr_sl = r4_level
-                        if self.log_trades:
-                            print(f"  [RATCHET TIER 4 LOCKED] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking +{self.r4_lock:.1f} pts profit)")
-
-                # Tier 5: +280 pts -> Lock +220 pts
-                if self.r5_trigger is not None and pos["max_fav"] >= self.r5_trigger:
-                    r5_level = entry_px + self.r5_lock if sig == "LONG" else entry_px - self.r5_lock
-                    if (sig == "LONG" and r5_level > curr_sl) or (sig == "SHORT" and r5_level < curr_sl):
-                        pos["current_sl"] = r5_level
-                        curr_sl = r5_level
-                        if self.log_trades:
-                            print(f"  [RATCHET TIER 5 LOCKED] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking +{self.r5_lock:.1f} pts profit)")
-
-                # Tier 6: +330 pts -> Lock +270 pts (Uncapped Runner Lock)
-                if self.r6_trigger is not None and pos["max_fav"] >= self.r6_trigger:
-                    r6_level = entry_px + self.r6_lock if sig == "LONG" else entry_px - self.r6_lock
-                    if (sig == "LONG" and r6_level > curr_sl) or (sig == "SHORT" and r6_level < curr_sl):
-                        pos["current_sl"] = r6_level
-                        curr_sl = r6_level
-                        if self.log_trades:
-                            print(f"  [RATCHET TIER 6 LOCKED] Reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking +{self.r6_lock:.1f} pts profit)")
-
-                # --- Breakeven Lock (Optional extra override) ---
-                if self.be_trigger is not None and pos["max_fav"] >= self.be_trigger:
-                    be_level = entry_px + self.be_lock if sig == "LONG" else entry_px - self.be_lock
-                    if (sig == "LONG" and be_level > curr_sl) or (sig == "SHORT" and be_level < curr_sl):
-                        pos["current_sl"] = be_level
-                        curr_sl = be_level
-                        if self.log_trades:
-                            print(f"  [BREAKEVEN LOCKED] Trade reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking {self.be_lock:+.1f} pts)")
-
-                # --- Re-entry Specific Breakeven Lock ---
-                if pos.get("trade_num") == 2 and self.reentry_be_trigger is not None and pos["max_fav"] >= self.reentry_be_trigger:
-                    be_level = entry_px + self.reentry_be_lock if sig == "LONG" else entry_px - self.reentry_be_lock
-                    if (sig == "LONG" and be_level > curr_sl) or (sig == "SHORT" and be_level < curr_sl):
-                        pos["current_sl"] = be_level
-                        curr_sl = be_level
-                        if self.log_trades:
-                            print(f"  [REENTRY BREAKEVEN LOCKED] Re-entry reached +{pos['max_fav']:.1f} pts! Stop moved to {curr_sl:.2f} (Locking {self.reentry_be_lock:+.1f} pts)")
 
             # --- Check Exit Conditions ---
             closed = False

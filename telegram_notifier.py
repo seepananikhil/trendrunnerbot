@@ -178,22 +178,6 @@ def notify_trade_entry(
     send_telegram_message(msg, dedup_key=f"entry_{symbol}_{option_str}")
 
 
-def notify_ratchet(
-    symbol: str,
-    side: str,
-    tier_label: str,
-    new_sl: float,
-    locked_pts: float,
-    spot_price: float,
-) -> None:
-    msg = (
-        f"🛡️ <b>SL RATCHET — {_escape_html(symbol)} ({_escape_html(side)})</b>\n"
-        f"Tier: <b>{_escape_html(tier_label)}</b>\n"
-        f"Spot: <code>{spot_price:.2f}</code> | New SL: <code>{new_sl:.2f}</code> (Locked: <b>{locked_pts:+.1f} pts</b>)"
-    )
-    send_telegram_message(msg, dedup_key=f"ratchet_{symbol}_{tier_label}", cooldown_sec=10.0)
-
-
 def notify_trade_exit(
     symbol: str,
     side: str,
