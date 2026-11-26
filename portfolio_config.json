@@ -4,8 +4,8 @@
   "mode": "concurrent",
   "sizing_mode": "fixed",
   "max_trades_per_day": 3,
-  "max_concurrent_positions": 1,
-  "cross_instrument_concurrency": "FIRST_TRIGGERED",
+  "max_concurrent_positions": 2,
+  "cross_instrument_concurrency": "CONCURRENT",
   "require_dual_activation": true,
   "require_dual_ema20_cross": true,
   "dual_activation_window_mins": 60,
@@ -18,14 +18,14 @@
     "williams_fractal": false
   },
   "nifty_settings": {
-    "initial_sl_pts": 30.0,
+    "initial_sl_pts": 50.0,
     "call_cutoff_time": "10:45",
     "reentry_cooloff_bars": 20,
     "vix_th": 1.8,
     "vix_call_th": 1.8
   },
   "sensex_settings": {
-    "initial_sl_pts": 120.0,
+    "initial_sl_pts": 200.0,
     "call_cutoff_time": "10:45",
     "reentry_cooloff_bars": 20,
     "vix_th": 1.8,
