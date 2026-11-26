@@ -237,7 +237,8 @@ def check_dual_ema_cross_exit(sym: str, sig: str, t_str: str, c_5m: float, ema20
         if other_c == 0.0:
             return True
 
-        other_crossed = (other_c > other_ema) if sig in ("SHORT", "PUT") else (other_c < other_ema)
+        from apex_duo_rules import check_ema20_cross
+        other_crossed = check_ema20_cross(other_sym, sig, other_c, other_ema)
         if not other_crossed:
             logger.info(f"[{t_str}] [DUAL EMA HOLD] {sym} crossed 5m EMA20, waiting on {other_sym}.")
             return False
@@ -413,7 +414,7 @@ def strategy_runner_loop(symbol: str) -> None:
                 engine = TrendRunnerPaperEngine(
                     symbol=sym_upper,
                     trailing_mode=str(port_cfg.get(trailing_key, port_cfg.get("trailing_mode", "ema20_5m"))).lower(),
-                    sl_points=float(ratchet.get("initial_sl_pts", 120.0 if sym_upper == "SENSEX" else 30.0)),
+                    sl_points=float(ratchet.get("initial_sl_pts", 200.0 if sym_upper == "SENSEX" else 50.0)),
                     sl_mode="fixed",
                     lots=lots_cfg,
                     sizing_mode=sizing_cfg,
