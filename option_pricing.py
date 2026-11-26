@@ -87,6 +87,7 @@ def get_live_option_ltp(
     strike: int = 22500,
     opt_type: str = "CE",
     expiry_date: Optional[str] = None,
+    bypass_cache: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Fetch real-time market quote for nearest or specified weekly option contract."""
     opt_type = opt_type.upper()
@@ -94,7 +95,7 @@ def get_live_option_ltp(
 
     now_ts = time.time()
     cached = _QUOTE_CACHE.get(cache_key)
-    if cached and (now_ts - cached[0] < _QUOTE_TTL_SEC):
+    if not bypass_cache and cached and (now_ts - cached[0] < _QUOTE_TTL_SEC):
         return cached[1]
 
     client = get_kotak_client()
