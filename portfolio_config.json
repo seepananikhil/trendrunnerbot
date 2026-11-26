@@ -18,14 +18,14 @@
     "williams_fractal": false
   },
   "nifty_settings": {
-    "initial_sl_pts": 50.0,
+    "initial_sl_pts": 55.0,
     "call_cutoff_time": "10:45",
     "reentry_cooloff_bars": 20,
     "vix_th": 1.8,
     "vix_call_th": 1.8
   },
   "sensex_settings": {
-    "initial_sl_pts": 200.0,
+    "initial_sl_pts": 220.0,
     "call_cutoff_time": "10:45",
     "reentry_cooloff_bars": 20,
     "vix_th": 1.8,

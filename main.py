@@ -457,7 +457,7 @@ def strategy_runner_loop(symbol: str) -> None:
                 engine = TrendRunnerPaperEngine(
                     symbol=sym_upper,
                     trailing_mode=str(port_cfg.get(trailing_key, port_cfg.get("trailing_mode", "ema20_5m"))).lower(),
-                    sl_points=float(inst_cfg.get("initial_sl_pts", 200.0 if sym_upper == "SENSEX" else 50.0)),
+                    sl_points=float(inst_cfg.get("initial_sl_pts", 220.0 if sym_upper == "SENSEX" else 55.0)),
                     sl_mode="fixed",
                     lots=lots_cfg,
                     sizing_mode=sizing_cfg,
