@@ -41,6 +41,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 _ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "MAX_DAILY_LOSS")
 _ENGINES_REF: dict = {}
+_BROKER_CACHE: dict = {"ts": 0.0, "funds": {"ok": False}, "mtm": 0.0, "positions": []}
 
 
 def _update_env_file(updates: dict[str, str]) -> None:
@@ -99,9 +100,23 @@ class PanelHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/state":
+            import time as _t
             tok = kotak_token_status(auto_login=False)
-            funds = available_kotak_funds() if tok.get("valid") else {"ok": False}
-            mtm_pnl, positions = fetch_kotak_mtm_and_positions() if tok.get("valid") else (0.0, [])
+            now_ts = _t.time()
+            if tok.get("valid") and (now_ts - _BROKER_CACHE["ts"] >= 4.0):
+                _BROKER_CACHE["funds"] = available_kotak_funds()
+                mtm_pnl, positions = fetch_kotak_mtm_and_positions()
+                _BROKER_CACHE["mtm"] = mtm_pnl
+                _BROKER_CACHE["positions"] = positions
+                _BROKER_CACHE["ts"] = now_ts
+            elif not tok.get("valid"):
+                _BROKER_CACHE["funds"] = {"ok": False}
+                _BROKER_CACHE["mtm"] = 0.0
+                _BROKER_CACHE["positions"] = []
+
+            funds = _BROKER_CACHE["funds"]
+            mtm_pnl = _BROKER_CACHE["mtm"]
+            positions = _BROKER_CACHE["positions"]
             locked, _ = is_risk_locked()
             env_safe = {k: os.getenv(k, "") for k in _ENV_SAFE_KEYS}
             running_strategy = []

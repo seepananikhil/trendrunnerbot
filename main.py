@@ -248,9 +248,26 @@ def check_dual_ema_cross_exit(sym: str, sig: str, t_str: str, c_5m: float, ema20
         return True
 
 
+def _is_realtime_bar(bar_hhmm: str, max_age_mins: int = 3) -> bool:
+    """Return True only if bar_hhmm (HH:MM) is within max_age_mins of current IST time."""
+    if not bar_hhmm or ":" not in str(bar_hhmm):
+        return False
+    try:
+        now = datetime.now(IST)
+        hh, mm = map(int, str(bar_hhmm).strip()[:5].split(":"))
+        bar_dt = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        age_mins = abs((now - bar_dt).total_seconds()) / 60.0
+        return age_mins <= max_age_mins
+    except Exception:
+        return False
+
+
 def make_entry_handler(symbol: str, lot_size: int):
     def _on_entry(pos: dict) -> None:
         if not is_live_mode():
+            return
+        if not _is_realtime_bar(str(pos.get("entry_time", ""))):
+            logger.info(f"[{symbol}] Skipping live entry on historical replay bar ({pos.get('entry_time')}).")
             return
         locked, _ = is_risk_locked()
         if locked or STOP_FILE.exists():
@@ -308,6 +325,9 @@ def make_entry_handler(symbol: str, lot_size: int):
 def make_exit_handler(symbol: str, lot_size: int):
     def _on_exit(pos: dict, trade_result: dict) -> None:
         if not is_live_mode():
+            return
+        if not _is_realtime_bar(str(trade_result.get("exit_time", ""))):
+            logger.info(f"[{symbol}] Skipping live exit on historical replay bar ({trade_result.get('exit_time')}).")
             return
         opt_symbol = pos.get("option_symbol") or trade_result.get("option_symbol") or ""
         if (not opt_symbol or opt_symbol == pos.get("option")) and pos.get("strike"):
@@ -367,6 +387,8 @@ def strategy_runner_loop(symbol: str) -> None:
     live_file = LIVE_DIR / f"{sym_lower}_1min_{cur_day}.csv"
     engine: Optional[TrendRunnerPaperEngine] = None
     processed_times: set[str] = set()
+    last_mtime: float = 0.0
+    last_processed_idx: int = 0
 
     logger.info(f"Strategy loop started for {sym_upper} (lot_size={lot_size}).")
 
@@ -389,6 +411,8 @@ def strategy_runner_loop(symbol: str) -> None:
                 live_file = LIVE_DIR / f"{sym_lower}_1min_{cur_day}.csv"
                 engine = None
                 processed_times.clear()
+                last_mtime = 0.0
+                last_processed_idx = 0
                 with _STATE_LOCK:
                     DUAL_CONFLUENCE_STATE["armed"].clear()
                     DUAL_CONFLUENCE_STATE["confirmed"] = None
@@ -398,10 +422,21 @@ def strategy_runner_loop(symbol: str) -> None:
                 time.sleep(5)
                 continue
 
+            # Skip disk read & indicator recomputation if CSV hasn't changed
+            try:
+                cur_mtime = live_file.stat().st_mtime
+            except OSError:
+                time.sleep(2)
+                continue
+            if cur_mtime == last_mtime and engine is not None:
+                time.sleep(2)
+                continue
+
             df1 = pd.read_csv(live_file)
             if df1.empty or len(df1) < 15:
                 time.sleep(5)
                 continue
+            last_mtime = cur_mtime
 
             setups_cfg = port_cfg.get("setups", {})
             enable_trend = bool(setups_cfg.get("trend_runner", True))
@@ -452,7 +487,7 @@ def strategy_runner_loop(symbol: str) -> None:
 
             vix_curr = get_vix_change_pct(cur_day)
 
-            for idx in range(len(df1) - 1):
+            for idx in range(last_processed_idx, len(df1) - 1):
                 bar = df1.iloc[idx]
                 bar_t = str(bar["time_str"])
                 if bar_t not in processed_times:
@@ -461,6 +496,7 @@ def strategy_runner_loop(symbol: str) -> None:
                     if res:
                         logger.info(f"[{sym_upper}] Position Event: {res}")
                     processed_times.add(bar_t)
+            last_processed_idx = max(0, len(df1) - 1)
         except Exception as exc:
             logger.exception(f"Error in {sym_upper} strategy loop: {exc}")
         time.sleep(2)

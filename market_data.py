@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -119,7 +120,9 @@ class MarketDataStreamer:
                 df = pd.DataFrame(rows)
                 df = df.drop_duplicates("timestamp", keep="last").sort_values("timestamp")
                 df = ensure_continuous_1min_candles(df, day)
-                df.to_csv(target_file, index=False)
+                tmp_file = target_file.with_suffix(".csv.tmp")
+                df.to_csv(tmp_file, index=False)
+                os.replace(tmp_file, target_file)
                 return True
         except Exception as exc:
             if "429" in str(exc):
@@ -181,7 +184,9 @@ class MarketDataStreamer:
 
                 if quotes_data:
                     quotes_file = LIVE_DIR / f"quotes_{day}.json"
-                    quotes_file.write_text(json.dumps(quotes_data), encoding="utf-8")
+                    tmp_q = quotes_file.with_suffix(".json.tmp")
+                    tmp_q.write_text(json.dumps(quotes_data), encoding="utf-8")
+                    os.replace(tmp_q, quotes_file)
         except Exception as exc:
             logger.debug(f"Quote poll error: {exc}")
 
