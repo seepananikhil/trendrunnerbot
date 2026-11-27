@@ -360,8 +360,6 @@ class TrendRunnerPaperEngine:
                 self.r6_lock = 850.0
             if call_cutoff_time == "10:45":
                 self.call_cutoff_time = "10:45"
-            if strike_mode == "itm150":
-                self.strike_mode = "atm"
 
         self.active_position: Optional[Dict[str, Any]] = None
         self.trades_today: int = 0
@@ -799,11 +797,15 @@ class TrendRunnerPaperEngine:
                     sl_px = entry_px - effective_sl_pts if sig == "LONG" else entry_px + effective_sl_pts
             opt_type = "CE" if sig == "LONG" else "PE"
 
-            # Strike Selection: ITM-150 vs ATM
+            # Strike Selection: ITM-150 (NIFTY) / ITM-200 (SENSEX) vs ATM
             if self.symbol == "SENSEX":
-                strike = int(round(entry_px / 100.0) * 100)
-                opt_str = f"SENSEX {strike} {opt_type} (ATM)"
-            elif self.strike_mode == "itm150":
+                if self.strike_mode in ("itm150", "itm200", "itm"):
+                    strike = int(round((entry_px - 200 if sig == "LONG" else entry_px + 200) / 100.0) * 100)
+                    opt_str = f"SENSEX {strike} {opt_type} (ITM-200)"
+                else:
+                    strike = int(round(entry_px / 100.0) * 100)
+                    opt_str = f"SENSEX {strike} {opt_type} (ATM)"
+            elif self.strike_mode in ("itm150", "itm200", "itm"):
                 strike = int(round((entry_px - 150 if sig == "LONG" else entry_px + 150) / 50.0) * 50)
                 opt_str = f"NIFTY {strike} {opt_type} (ITM-150)"
             else:

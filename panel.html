@@ -285,6 +285,17 @@
             <label for="maxDailyLoss">Max Daily Loss (INR)</label>
             <input id="maxDailyLoss" type="number" min="100" step="100" />
           </div>
+          <div>
+            <label for="accountCapital">Account Capital (INR)</label>
+            <input id="accountCapital" type="number" min="5000" step="1000" placeholder="25000" />
+          </div>
+          <div>
+            <label for="strikeMode">Strike Selection</label>
+            <select id="strikeMode">
+              <option value="itm150">ITM (NIFTY -150 / SENSEX -200)</option>
+              <option value="atm">ATM (At-the-Money)</option>
+            </select>
+          </div>
         </div>
         <div class="btn-row">
           <button class="btn" onclick="saveSettings(false)">Save Preferences</button>
@@ -411,6 +422,8 @@
         document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";
         document.getElementById("tradingLots").value = d.env.TRADING_LOTS || "1";
         document.getElementById("maxDailyLoss").value = d.env.MAX_DAILY_LOSS || "2000";
+        document.getElementById("accountCapital").value = d.env.ACCOUNT_CAPITAL || "25000";
+        document.getElementById("strikeMode").value = d.env.STRIKE_MODE || "itm150";
       }
 
       const posWrap = document.getElementById("positionsWrap");
@@ -475,6 +488,8 @@
           TRADING_MODE: document.getElementById("tradingMode").value,
           TRADING_LOTS: document.getElementById("tradingLots").value,
           MAX_DAILY_LOSS: document.getElementById("maxDailyLoss").value,
+          ACCOUNT_CAPITAL: document.getElementById("accountCapital").value,
+          STRIKE_MODE: document.getElementById("strikeMode").value,
         },
       };
       if (includeCreds) {

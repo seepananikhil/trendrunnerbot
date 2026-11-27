@@ -39,7 +39,7 @@ PORTFOLIO_PATH = ROOT / "portfolio_config.json"
 STOP_FILE = ROOT / "STOP_TRADING"
 IST = timezone(timedelta(hours=5, minutes=30))
 
-_ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "MAX_DAILY_LOSS")
+_ENV_SAFE_KEYS = ("TRADING_MODE", "TRADING_LOTS", "MAX_DAILY_LOSS", "ACCOUNT_CAPITAL", "STRIKE_MODE")
 _ENGINES_REF: dict = {}
 _BROKER_CACHE: dict = {"ts": 0.0, "funds": {"ok": False}, "mtm": 0.0, "positions": []}
 

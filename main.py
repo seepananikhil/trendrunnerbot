@@ -464,6 +464,7 @@ def strategy_runner_loop(symbol: str) -> None:
                     sl_mode="fixed",
                     lots=lots_cfg,
                     sizing_mode=sizing_cfg,
+                    strike_mode=os.getenv("STRIKE_MODE", "itm150").strip().lower() or "itm150",
                     max_trades_per_day=int(port_cfg.get("max_trades_per_day", 3)),
                     call_cutoff_time=str(inst_cfg.get("call_cutoff_time", "10:45")),
                     reentry_cooloff_bars=int(inst_cfg.get("reentry_cooloff_bars", 20)),
