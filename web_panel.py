@@ -250,6 +250,16 @@ class PanelHandler(BaseHTTPRequestHandler):
                 if env_updates:
                     clean_updates = {k: str(v) for k, v in env_updates.items() if str(v).strip() != ""}
                     _update_env_file(clean_updates)
+                    if "STRIKE_MODE" in clean_updates:
+                        for eng in _ENGINES_REF.values():
+                            eng.strike_mode = clean_updates["STRIKE_MODE"].strip().lower()
+                    if "TRADING_LOTS" in clean_updates:
+                        try:
+                            new_lots = int(clean_updates["TRADING_LOTS"])
+                            for eng in _ENGINES_REF.values():
+                                eng.lots = new_lots
+                        except ValueError:
+                            pass
 
                     neo_changed = any(k.startswith("NEO_") for k in clean_updates)
                     tg_changed = any(k.startswith("TELEGRAM_") for k in clean_updates)

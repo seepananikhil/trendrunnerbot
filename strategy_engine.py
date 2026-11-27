@@ -796,20 +796,27 @@ class TrendRunnerPaperEngine:
                     sl_px = entry_px - effective_sl_pts if sig == "LONG" else entry_px + effective_sl_pts
             opt_type = "CE" if sig == "LONG" else "PE"
 
-            # Strike Selection: ITM-150 (NIFTY) / ITM-200 (SENSEX) vs ATM
+            # Strike Selection: ATM or ITM-<offset> (up to 500)
+            mode_str = str(self.strike_mode or "itm150").strip().lower()
+            itm_offset = 0
+            if mode_str.startswith("itm"):
+                digits = "".join(ch for ch in mode_str if ch.isdigit())
+                itm_offset = min(500, max(0, int(digits))) if digits else 150
+
             if self.symbol == "SENSEX":
-                if self.strike_mode in ("itm150", "itm200", "itm"):
-                    strike = int(round((entry_px - 200 if sig == "LONG" else entry_px + 200) / 100.0) * 100)
-                    opt_str = f"SENSEX {strike} {opt_type} (ITM-200)"
+                if itm_offset > 0:
+                    strike = int(round((entry_px - itm_offset if sig == "LONG" else entry_px + itm_offset) / 100.0) * 100)
+                    opt_str = f"SENSEX {strike} {opt_type} (ITM-{itm_offset})"
                 else:
                     strike = int(round(entry_px / 100.0) * 100)
                     opt_str = f"SENSEX {strike} {opt_type} (ATM)"
-            elif self.strike_mode in ("itm150", "itm200", "itm"):
-                strike = int(round((entry_px - 150 if sig == "LONG" else entry_px + 150) / 50.0) * 50)
-                opt_str = f"NIFTY {strike} {opt_type} (ITM-150)"
             else:
-                strike = int(round(entry_px / 50.0) * 50)
-                opt_str = f"NIFTY {strike} {opt_type} (ATM)"
+                if itm_offset > 0:
+                    strike = int(round((entry_px - itm_offset if sig == "LONG" else entry_px + itm_offset) / 50.0) * 50)
+                    opt_str = f"NIFTY {strike} {opt_type} (ITM-{itm_offset})"
+                else:
+                    strike = int(round(entry_px / 50.0) * 50)
+                    opt_str = f"NIFTY {strike} {opt_type} (ATM)"
 
             # Dynamic Confluence Sizing (1 vs 2 Lots)
             if self.sizing_mode in ("hybrid", "dynamic"):
