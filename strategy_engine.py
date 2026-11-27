@@ -56,11 +56,18 @@ except ImportError:
     notify_trade_entry = notify_trade_exit = None
 
 IST = timezone(timedelta(hours=5, minutes=30))
-ROOT = Path(__file__).resolve().parent
-LIVE_DIR = ROOT / "data" / "live"
+_EXT_ROOT = os.environ.get("APEX_ROOT_DIR", "").strip()
+if _EXT_ROOT:
+    ROOT = Path(_EXT_ROOT).resolve()
+    LIVE_DIR = ROOT / "captured_data" / "live"
+    CAPTURED_DIR = ROOT / "captured_data"
+    PERF_DIR = ROOT / "performance"
+else:
+    ROOT = Path(__file__).resolve().parent
+    LIVE_DIR = ROOT / "data" / "live"
+    CAPTURED_DIR = ROOT / "data"
+    PERF_DIR = ROOT / "data" / "performance"
 LIVE_DIR.mkdir(parents=True, exist_ok=True)
-CAPTURED_DIR = ROOT / "data"
-PERF_DIR = ROOT / "data" / "performance"
 PERF_DIR.mkdir(parents=True, exist_ok=True)
 PAPER_LOG_CSV = PERF_DIR / "trend_runner_trades.csv"
 LIVE_PAPER_CSV = LIVE_DIR / "trend_runner_live.csv"
