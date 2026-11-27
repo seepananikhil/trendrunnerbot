@@ -227,8 +227,11 @@ def check_dual_ema_cross_exit(sym: str, sig: str, t_str: str, c_5m: float, ema20
         if not other_engine:
             return True
 
-        other_c = getattr(other_engine, "last_completed_5m_close", None)
-        other_ema = getattr(other_engine, "last_completed_5m_ema20", None)
+        other_c = getattr(other_engine, "last_1m_close", None)
+        other_ema = getattr(other_engine, "last_1m_ema200", None)
+        if other_c is None or other_ema is None:
+            other_c = getattr(other_engine, "last_completed_5m_close", None)
+            other_ema = getattr(other_engine, "last_completed_5m_ema20", None)
         if other_c is None or other_ema is None:
             return True
 
@@ -240,7 +243,7 @@ def check_dual_ema_cross_exit(sym: str, sig: str, t_str: str, c_5m: float, ema20
         from apex_duo_rules import check_ema20_cross
         other_crossed = check_ema20_cross(other_sym, sig, other_c, other_ema)
         if not other_crossed:
-            logger.info(f"[{t_str}] [DUAL EMA HOLD] {sym} crossed 5m EMA20, waiting on {other_sym}.")
+            logger.info(f"[{t_str}] [DUAL EMA HOLD] {sym} crossed 1m 200-EMA, waiting on {other_sym}.")
             return False
         return True
     except Exception as exc:
