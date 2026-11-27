@@ -77,13 +77,9 @@ LIVE_SIGNALS_CSV = LIVE_DIR / "trend_runner_live_signals.csv"
 LOT_SIZE = 25  # Nifty standard lot size
 
 
-def get_vix_change_pct(date_str: str) -> float:
-    """Fetch daily VIX change % from Kotak Neo live quotes, today's quote cache, or historical CSV."""
-    today_now = datetime.now().strftime("%Y-%m-%d")
-
-    # If asking for a past date, check captured india_vix_daily.csv first
-    if date_str != today_now:
-        vix_csv = CAPTURED_DIR / "india_vix_daily.csv"
+def _lookup_vix_csv(date_str: str) -> Optional[float]:
+    for fname in ("india_vix_daily.csv", "india_vix_10y.csv"):
+        vix_csv = CAPTURED_DIR / fname
         if vix_csv.exists():
             try:
                 vdf = pd.read_csv(vix_csv)
@@ -95,6 +91,18 @@ def get_vix_change_pct(date_str: str) -> float:
                         return float(val)
             except Exception:
                 pass
+    return None
+
+
+def get_vix_change_pct(date_str: str) -> float:
+    """Fetch daily VIX change % from Kotak Neo live quotes, today's quote cache, or historical CSV."""
+    today_now = datetime.now().strftime("%Y-%m-%d")
+
+    # If asking for a past date, check captured VIX CSVs first
+    if date_str != today_now:
+        cached_vix = _lookup_vix_csv(date_str)
+        if cached_vix is not None:
+            return cached_vix
 
     # 1. Try checking today's live quotes cache
     quotes_file = LIVE_DIR / f"quotes_{date_str}.json"
@@ -122,19 +130,10 @@ def get_vix_change_pct(date_str: str) -> float:
         except Exception:
             pass
 
-    # 3. Fallback to captured india_vix_daily.csv
-    vix_csv = CAPTURED_DIR / "india_vix_daily.csv"
-    if vix_csv.exists():
-        try:
-            vdf = pd.read_csv(vix_csv)
-            vdf["date_str"] = vdf["date"].astype(str)
-            sub = vdf[vdf["date_str"] == date_str]
-            if not sub.empty:
-                val = sub.iloc[-1].get("vix_change_pct")
-                if pd.notna(val):
-                    return float(val)
-        except Exception:
-            pass
+    # 3. Fallback to captured VIX CSVs
+    cached_vix = _lookup_vix_csv(date_str)
+    if cached_vix is not None:
+        return cached_vix
 
     return 0.0
 
