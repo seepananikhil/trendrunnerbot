@@ -47,6 +47,7 @@ from apex_duo_rules import (
     check_ema20_cross,
     get_initial_sl_pts,
     get_vix_trap_sl_dist,
+    is_high_conviction_sizing,
     REENTRY_CUTOFF_TIME,
 )
 
@@ -818,9 +819,9 @@ class TrendRunnerPaperEngine:
                     strike = int(round(entry_px / 50.0) * 50)
                     opt_str = f"NIFTY {strike} {opt_type} (ATM)"
 
-            # Dynamic Confluence Sizing (1 vs 2 Lots)
+            # Dynamic Confluence Sizing (1 vs 2 Lots via Single Source of Truth)
             if self.sizing_mode in ("hybrid", "dynamic"):
-                is_high_conviction = (body_ratio >= 0.85) or (abs(vix_chg) >= 2.0 and body_ratio >= 0.80)
+                is_high_conviction = is_high_conviction_sizing(self.symbol, vix_chg, or_range)
                 base_lots = 2 if is_high_conviction else 1
             else:
                 base_lots = self.lots

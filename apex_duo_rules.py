@@ -133,3 +133,12 @@ def get_vix_trap_sl_dist(
     swing_ref = (rolling_low if rolling_low < 900000 else entry_px - 25.0) if is_long else (rolling_high if rolling_high > 0 else entry_px + 25.0)
     raw = (entry_px - swing_ref + 2.0) if is_long else (swing_ref - entry_px + 2.0)
     return max(25.0, min(80.0, raw))
+
+
+def is_high_conviction_sizing(symbol: str, vix_chg: float, or_range: float) -> bool:
+    """
+    A+ Dynamic 2-Lot Conviction Gate:
+    |VIX| >= 4.0% AND clean Opening Range (< 75 pts NIFTY / < 450 pts SENSEX).
+    """
+    or_cap = 450.0 if symbol.upper() == "SENSEX" else 75.0
+    return abs(vix_chg) >= 4.0 and 0.0 < or_range < or_cap
