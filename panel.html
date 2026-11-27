@@ -182,6 +182,15 @@
     .toast { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.84rem; display: none; }
     .toast.ok { display: block; background: var(--ok-bg); border: 1px solid var(--ok-border); color: var(--ok); }
     .toast.err { display: block; background: var(--err-bg); border: 1px solid var(--err-border); color: var(--err); }
+    .checks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+    .chk-item {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-muted);
+    }
+    .chk-item.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+    .chk-item.err { background: var(--err-bg); border-color: var(--err-border); }
+    .chk-name { font-size: 0.82rem; font-weight: 600; }
+    .chk-detail { font-size: 0.76rem; color: var(--muted); margin-top: 2px; word-break: break-word; }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -225,6 +234,17 @@
         <div class="stat"><div class="stat-label">Account Balance</div><div class="stat-val" id="stFunds">—</div></div>
         <div class="stat"><div class="stat-label">Today's MTM P&amp;L</div><div class="stat-val" id="stPnl">—</div></div>
         <div class="stat"><div class="stat-label">Engine Status</div><div class="stat-val" id="stEngine">—</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">System Health &amp; Pre-Flight Checks</h2>
+            <p class="card-desc">Live verification of broker auth, market feed, Risk Guardian, strategies, and alerts.</p>
+          </div>
+          <span id="checksBadge" class="pill warn"><span class="dot"></span><span>Checking...</span></span>
+        </div>
+        <div id="checksGrid" class="checks-grid"></div>
       </div>
 
       <div class="card">
@@ -417,6 +437,20 @@
       pnlEl.textContent = `₹${mtm.toLocaleString("en-IN")}`;
       pnlEl.style.color = mtm > 0 ? "var(--ok)" : (mtm < 0 ? "var(--err)" : "var(--text)");
       document.getElementById("stEngine").textContent = d.risk_locked ? "Risk Locked" : (d.paused ? "Paused" : "Active");
+
+      const checks = d.checks || [];
+      const badCount = checks.filter(c => c.status !== "ok").length;
+      const cb = document.getElementById("checksBadge");
+      cb.className = "pill " + (badCount === 0 ? "ok" : (checks.some(c => c.status === "err") ? "err" : "warn"));
+      cb.innerHTML = `<span class="dot"></span><span>${badCount === 0 ? "All Checks Passed" : `${badCount} Attention Needed`}</span>`;
+      document.getElementById("checksGrid").innerHTML = checks.map(c => {
+        const pillCls = c.status === "ok" ? "ok" : (c.status === "err" ? "err" : "warn");
+        const label = c.status === "ok" ? "OK" : (c.status === "err" ? "MISSING" : "WARN");
+        return `<div class="chk-item ${c.status}">
+          <div><div class="chk-name">${c.name}</div><div class="chk-detail">${c.detail}</div></div>
+          <span class="pill ${pillCls}" style="shrink:0;">${label}</span>
+        </div>`;
+      }).join("");
 
       if (document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "SELECT") {
         document.getElementById("tradingMode").value = d.env.TRADING_MODE || "paper";

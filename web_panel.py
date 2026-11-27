@@ -25,6 +25,7 @@ from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status,
 import requests
 from risk_guardian import (
     fetch_kotak_mtm_and_positions,
+    get_guardian_config,
     is_risk_locked,
     square_off_all_kotak_positions,
 )
@@ -62,6 +63,89 @@ def _update_env_file(updates: dict[str, str]) -> None:
         new_lines.append(f"{k}={val}")
         os.environ[k] = val
     ENV_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+def _build_health_checks(tok: dict, locked: bool) -> list[dict]:
+    alive_threads = {t.name for t in threading.enumerate() if t.is_alive()}
+    today_s = datetime.now(IST).strftime("%Y-%m-%d")
+
+    # 1. Kotak Credentials & Session
+    neo_keys = ("NEO_CONSUMER_KEY", "NEO_MOBILE_NUMBER", "NEO_UCC", "NEO_MPIN", "NEO_TOTP_SECRET")
+    missing_neo = [k for k in neo_keys if not os.getenv(k, "").strip()]
+    if missing_neo:
+        kotak_chk = {"name": "Broker Auth", "status": "err", "detail": f"Missing: {', '.join(missing_neo)}"}
+    elif not tok.get("valid"):
+        kotak_chk = {"name": "Broker Auth", "status": "warn", "detail": str(tok.get("reason") or "Session expired")}
+    else:
+        kotak_chk = {"name": "Broker Auth", "status": "ok", "detail": f"Active ({tok.get('ucc', '')})"}
+
+    # 2. Live Market Data Feed
+    quotes_file = ROOT / "data" / "live" / f"quotes_{today_s}.json"
+    nifty_csv = ROOT / "data" / "live" / f"nifty_1min_{today_s}.csv"
+    sensex_csv = ROOT / "data" / "live" / f"sensex_1min_{today_s}.csv"
+    feed_alive = "market-data" in alive_threads
+    if not feed_alive:
+        feed_chk = {"name": "Live Market Feed", "status": "err", "detail": "MarketDataStreamer thread stopped"}
+    elif quotes_file.exists():
+        try:
+            q = json.loads(quotes_file.read_text(encoding="utf-8"))
+            n_ltp = (q.get("nifty") or {}).get("ltp")
+            s_ltp = (q.get("sensex") or {}).get("ltp")
+            v_ltp = (q.get("vix") or {}).get("ltp")
+            feed_chk = {"name": "Live Market Feed", "status": "ok", "detail": f"NIFTY {n_ltp or '—'} · SENSEX {s_ltp or '—'} · VIX {v_ltp or '—'}"}
+        except Exception:
+            feed_chk = {"name": "Live Market Feed", "status": "ok", "detail": "Streaming active"}
+    else:
+        has_csv = nifty_csv.exists() or sensex_csv.exists()
+        feed_chk = {
+            "name": "Live Market Feed",
+            "status": "ok" if has_csv else "warn",
+            "detail": "1m candles active" if has_csv else "Waiting for market hours (09:15 IST)",
+        }
+
+    # 3. Risk Guardian
+    g_cfg = get_guardian_config()
+    rg_alive = "risk-guardian" in alive_threads
+    if not g_cfg["enabled"]:
+        rg_chk = {"name": "Risk Guardian", "status": "err", "detail": "Disabled in .env"}
+    elif not rg_alive:
+        rg_chk = {"name": "Risk Guardian", "status": "err", "detail": "Watcher thread stopped"}
+    elif locked:
+        rg_chk = {"name": "Risk Guardian", "status": "err", "detail": f"LOCKED (Loss limit ₹{g_cfg['daily_loss_limit']:,.0f} hit)"}
+    else:
+        rg_chk = {"name": "Risk Guardian", "status": "ok", "detail": f"Active · Limit ₹{g_cfg['daily_loss_limit']:,.0f}"}
+
+    # 4. Strategy Loops
+    n_up = "strategy-nifty" in alive_threads
+    s_up = "strategy-sensex" in alive_threads
+    if n_up and s_up:
+        strat_chk = {"name": "Strategy Engines", "status": "ok", "detail": "NIFTY & SENSEX listening"}
+    else:
+        down = [x for x, ok in (("NIFTY", n_up), ("SENSEX", s_up)) if not ok]
+        strat_chk = {"name": "Strategy Engines", "status": "err", "detail": f"Stopped: {', '.join(down)}"}
+
+    # 5. Telegram Alerts & Bot
+    tg_ok = is_configured()
+    tg_bot_up = "telegram-bot" in alive_threads
+    if not tg_ok:
+        tg_chk = {"name": "Telegram Alerts", "status": "warn", "detail": "Token or Chat ID missing"}
+    elif not tg_bot_up:
+        tg_chk = {"name": "Telegram Alerts", "status": "warn", "detail": "Alerts OK · Bot poller offline"}
+    else:
+        tg_chk = {"name": "Telegram Alerts", "status": "ok", "detail": "Alerts & Bot connected"}
+
+    # 6. Execution Config
+    mode = os.getenv("TRADING_MODE", "paper").strip().upper()
+    strike = os.getenv("STRIKE_MODE", "itm150").strip().upper()
+    lots = os.getenv("TRADING_LOTS", "1").strip()
+    cap = os.getenv("ACCOUNT_CAPITAL", "25000").strip()
+    cfg_chk = {
+        "name": "Execution Config",
+        "status": "ok" if mode in ("PAPER", "LIVE") else "warn",
+        "detail": f"{mode} · {lots} Lot · {strike} · ₹{cap}",
+    }
+
+    return [kotak_chk, feed_chk, rg_chk, strat_chk, tg_chk, cfg_chk]
 
 
 def _read_today_trades() -> list[dict]:
@@ -145,6 +229,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                 "paused": STOP_FILE.exists(),
                 "env": env_safe,
                 "trades": _read_today_trades(),
+                "checks": _build_health_checks(tok, locked),
             })
             return
 
