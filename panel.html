@@ -328,11 +328,11 @@
     .strip-grid {
       flex-shrink: 0;
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
       margin-bottom: 12px;
     }
-    @media (max-width: 1050px) {
+    @media (max-width: 1180px) {
       .strip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .metric-card {
@@ -1210,7 +1210,20 @@
             </div>
           </div>
 
-          <!-- 2. SENSEX 30 -->
+          <!-- 2. AVAILABLE FUNDS -->
+          <div class="metric-card">
+            <div class="metric-head">
+              <span class="metric-label">Available Funds</span>
+              <span id="fundsStatusBadge" class="badge badge-ok" style="font-size:9px;padding:1px 5px;">KOTAK</span>
+            </div>
+            <div class="metric-value" id="valAvailableFunds">₹—</div>
+            <div class="metric-sub">
+              <span>Mode: <strong id="valModeShort">—</strong></span>
+              <span>Lot: <strong id="valLotsShort">—</strong></span>
+            </div>
+          </div>
+
+          <!-- 3. SENSEX 30 -->
           <div class="metric-card">
             <div class="metric-head">
               <span class="metric-label">SENSEX 30</span>
@@ -2061,6 +2074,22 @@
         document.getElementById("valRealizedPnl").textContent = `₹${realizedSum.toLocaleString("en-IN")}`;
         document.getElementById("valTradesCount").textContent = `${trades.length}`;
         document.getElementById("tradesCountPill").textContent = `${trades.length}`;
+
+        const fObj = d.funds || {};
+        const availFunds = Number(fObj.available_equity_funds || 0);
+        const fValEl = document.getElementById("valAvailableFunds");
+        const fBadgeEl = document.getElementById("fundsStatusBadge");
+        if (fObj.ok) {
+          fValEl.textContent = `₹${availFunds.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          fBadgeEl.textContent = "KOTAK";
+          fBadgeEl.className = "badge badge-ok";
+        } else {
+          fValEl.textContent = "₹—";
+          fBadgeEl.textContent = "OFFLINE";
+          fBadgeEl.className = "badge badge-warn";
+        }
+        document.getElementById("valModeShort").textContent = String((d.env || {}).TRADING_MODE || "paper").toUpperCase();
+        document.getElementById("valLotsShort").textContent = `${(d.env || {}).TRADING_LOTS || "1"}`;
 
         // 4. Active Positions & Emergency Exit Button
         const totalPosCount = bPos.length + sPos.length;
