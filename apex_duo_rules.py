@@ -138,14 +138,14 @@ def get_vix_trap_sl_dist(
 def is_high_conviction_sizing(symbol: str, vix_chg: float, or_range: float, spot_px: float = 0.0) -> bool:
     """
     A+ Dynamic 2-Lot Conviction Gate:
-    |VIX| >= 4.0% AND clean Opening Range (< 0.55% of spot; fallback < 140 pts NIFTY / < 450 pts SENSEX).
+    |VIX| >= 5.0% AND clean Opening Range (< 0.40% of spot; fallback < 100 pts NIFTY / < 325 pts SENSEX).
     """
     if spot_px > 0:
-        clean_or = 0.0 < (or_range / spot_px) < 0.0055
+        clean_or = 0.0 < (or_range / spot_px) < 0.0040
     else:
-        or_cap = 450.0 if symbol.upper() == "SENSEX" else 140.0
+        or_cap = 325.0 if symbol.upper() == "SENSEX" else 100.0
         clean_or = 0.0 < or_range < or_cap
-    return abs(vix_chg) >= 4.0 and clean_or
+    return abs(vix_chg) >= 5.0 and clean_or
 
 
 def compute_auto_scaled_lots(
@@ -165,7 +165,7 @@ def compute_auto_scaled_lots(
     - Auto Step-Up mode: stays at base_lots while capital < ₹50,000;
       once capital >= ₹50,000, steps up to floor(capital / capital_per_lot)
       (e.g. ₹50k -> 2 lots, ₹75k -> 3 lots, ₹1L -> 4 lots).
-    - High-Conviction (|VIX| >= 4.0% & OR < 0.55% of spot): adds +1 lot when capital >= ₹50,000.
+    - High-Conviction (|VIX| >= 5.0% & OR < 0.40% of spot): adds +1 lot when capital >= ₹50,000.
     """
     mode = str(sizing_mode or "auto_scale").strip().lower()
     default_lots = max(1, int(base_lots or 1))
