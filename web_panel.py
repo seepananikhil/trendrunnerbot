@@ -503,9 +503,33 @@ def _read_calendar_performance(month_str: str) -> dict:
     }
 
 
-_PANEL_SESSIONS: dict[str, float] = {}
+_SESSIONS_PATH = ROOT / "data" / ".panel_sessions.json"
 _PIN_FAILS: dict[str, tuple[int, float]] = {}
-_SESSION_TTL_SEC = 12 * 3600
+_SESSION_TTL_SEC = 30 * 24 * 3600
+
+
+def _load_sessions() -> dict[str, float]:
+    if not _SESSIONS_PATH.exists():
+        return {}
+    try:
+        raw = json.loads(_SESSIONS_PATH.read_text(encoding="utf-8"))
+        now_ts = time.time()
+        return {str(k): float(v) for k, v in raw.items() if float(v) > now_ts}
+    except Exception:
+        return {}
+
+
+def _save_sessions() -> None:
+    try:
+        now_ts = time.time()
+        valid = {k: v for k, v in _PANEL_SESSIONS.items() if v > now_ts}
+        _SESSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _SESSIONS_PATH.write_text(json.dumps(valid), encoding="utf-8")
+    except Exception:
+        pass
+
+
+_PANEL_SESSIONS: dict[str, float] = _load_sessions()
 
 
 def _get_active_pin() -> str:
@@ -693,6 +717,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                 _PIN_FAILS.pop(client_ip, None)
                 tok = secrets.token_urlsafe(32)
                 _PANEL_SESSIONS[tok] = now_ts + _SESSION_TTL_SEC
+                _save_sessions()
                 cookie = f"tr_session={tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age={_SESSION_TTL_SEC}"
                 self._send_json(200, {"ok": True, "locked": False}, extra_headers={"Set-Cookie": cookie})
             else:
@@ -706,6 +731,7 @@ class PanelHandler(BaseHTTPRequestHandler):
             tok = _extract_session_token(self.headers.get("Cookie", ""))
             if tok:
                 _PANEL_SESSIONS.pop(tok, None)
+                _save_sessions()
             self._send_json(
                 200,
                 {"ok": True, "locked": bool(_get_active_pin())},
@@ -726,6 +752,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
             _PANEL_SESSIONS.clear()
+            _save_sessions()
             _BROKER_CACHE["ts"] = 0.0
             self._send_json(
                 200,
@@ -745,6 +772,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                         _PANEL_SESSIONS.clear()
                         tok = secrets.token_urlsafe(32)
                         _PANEL_SESSIONS[tok] = time.time() + _SESSION_TTL_SEC
+                        _save_sessions()
                         new_session_cookie = f"tr_session={tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age={_SESSION_TTL_SEC}"
                     if "STRIKE_MODE" in clean_updates:
                         for eng in _ENGINES_REF.values():
