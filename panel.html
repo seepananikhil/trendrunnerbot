@@ -254,22 +254,30 @@
       color: var(--text-muted);
     }
     .footer-link {
-      background: transparent;
-      border: none;
-      padding: 2px 4px;
-      border-radius: 5px;
+      background: var(--sub-bg);
+      border: 1px solid var(--border);
+      padding: 5px 9px;
+      border-radius: 7px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 5px;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 600;
       color: var(--text-muted);
-      transition: background 0.15s ease, color 0.15s ease;
+      transition: all 0.15s ease;
     }
     .footer-link:hover {
-      background: var(--sub-bg);
+      background: var(--card-bg);
+      border-color: var(--brand);
       color: var(--text-main);
+    }
+    .footer-icon-btn {
+      width: 30px;
+      height: 28px;
+      padding: 0;
+      font-size: 13px;
     }
 
     .btn {
@@ -1180,9 +1188,9 @@
             <span id="healthDot" style="color:var(--ok);">●</span>
             <span id="healthSummaryTxt">6/6 OK</span>
           </button>
-          <div style="display:inline-flex;align-items:center;gap:4px;">
-            <button id="btnThemeToggle" class="footer-link" onclick="toggleTheme()" title="Toggle Dark / Light Theme">🌙</button>
-            <button id="btnLockPanel" class="footer-link hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN">🔒</button>
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <button id="btnThemeToggle" class="footer-link footer-icon-btn" onclick="toggleTheme()" title="Toggle Dark / Light Theme">🌙</button>
+            <button id="btnLockPanel" class="footer-link footer-icon-btn hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN">🔒</button>
           </div>
         </div>
         <div id="liveClock" style="font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:0.2px;padding-top:2px;">
