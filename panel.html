@@ -76,10 +76,19 @@
     [data-theme="dark"] .cal-cell,
     [data-theme="dark"] .modal-card,
     [data-theme="dark"] .pin-lock-card,
-    [data-theme="dark"] .pill-btn {
+    [data-theme="dark"] .pill-btn,
+    [data-theme="dark"] .bench-tab-btn.active,
+    [data-theme="dark"] .pos-hero,
+    [data-theme="dark"] .right-header,
+    [data-theme="dark"] .filter-btn,
+    [data-theme="dark"] .terminal-body {
       background: var(--card-bg);
       color: var(--text-main);
     }
+    [data-theme="dark"] .filter-btn.active { background: var(--brand); color: #ffffff; border-color: var(--brand); }
+    [data-theme="dark"] .log-line { border-bottom-color: var(--border); }
+    [data-theme="dark"] .log-line:hover { background: var(--sub-bg); }
+    [data-theme="dark"] .tag-eval { background: var(--sub-bg); color: var(--text-muted); }
     [data-theme="dark"] .btn:hover,
     [data-theme="dark"] .pill-btn:hover { background: var(--sub-bg); }
     [data-theme="dark"] .btn-primary { background: var(--brand); color: #ffffff; border-color: var(--brand); }
@@ -1239,15 +1248,15 @@
             <div class="bench-tab-bar">
               <button id="subtabPos" class="bench-tab-btn active" onclick="switchLeftTab('positions')">
                 <span>🎯 Active</span>
-                <span id="posCountPill" class="badge" style="background:#f1f5f9;color:#475569;font-size:10px;padding:1px 5px;">0</span>
+                <span id="posCountPill" class="badge" style="background:var(--sub-bg);color:var(--text-muted);font-size:10px;padding:1px 5px;">0</span>
               </button>
               <button id="subtabTrades" class="bench-tab-btn" onclick="switchLeftTab('trades')">
                 <span>📋 Trades</span>
-                <span id="tradesCountPill" class="badge" style="background:#f1f5f9;color:#475569;font-size:10px;padding:1px 5px;">0</span>
+                <span id="tradesCountPill" class="badge" style="background:var(--sub-bg);color:var(--text-muted);font-size:10px;padding:1px 5px;">0</span>
               </button>
               <button id="subtabOrders" class="bench-tab-btn" onclick="switchLeftTab('orders')">
                 <span>⚡ Orders</span>
-                <span id="ordersCountPill" class="badge" style="background:#f1f5f9;color:#475569;font-size:10px;padding:1px 5px;">0</span>
+                <span id="ordersCountPill" class="badge" style="background:var(--sub-bg);color:var(--text-muted);font-size:10px;padding:1px 5px;">0</span>
               </button>
             </div>
 
@@ -1402,11 +1411,11 @@
                   <button type="button" class="btn" style="width:44px;height:36px;font-size:16px;" onclick="stepScalpStrike(1)">+</button>
                 </div>
                 <div class="pill-row" style="margin-top:8px;">
-                  <button type="button" class="pill-btn" style="background:#fff;padding:4px;" onclick="offsetScalpStrike(-300)">-300</button>
-                  <button type="button" class="pill-btn" style="background:#fff;padding:4px;" onclick="offsetScalpStrike(-150)">-150</button>
-                  <button type="button" class="pill-btn" style="background:#fff;padding:4px;" onclick="offsetScalpStrike(0)">ATM</button>
-                  <button type="button" class="pill-btn" style="background:#fff;padding:4px;" onclick="offsetScalpStrike(150)">+150</button>
-                  <button type="button" class="pill-btn" style="background:#fff;padding:4px;" onclick="offsetScalpStrike(300)">+300</button>
+                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(-300)">-300</button>
+                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(-150)">-150</button>
+                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(0)">ATM</button>
+                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(150)">+150</button>
+                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(300)">+300</button>
                 </div>
               </div>
 
