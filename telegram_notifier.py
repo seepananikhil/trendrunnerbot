@@ -48,13 +48,16 @@ def load_telegram_config() -> Dict[str, Any]:
     chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
     env_enabled = os.getenv("TELEGRAM_ENABLED", "").strip().lower()
 
-    if CONFIG_PATH.exists():
-        try:
-            file_cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            bot_token = bot_token or str(file_cfg.get("bot_token", "")).strip()
-            chat_id = chat_id or str(file_cfg.get("chat_id", "")).strip()
-        except Exception:
-            pass
+    for cfg_file in (CONFIG_PATH, ROOT.parent / "telegram_config.json"):
+        if cfg_file.exists():
+            try:
+                file_cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
+                bot_token = bot_token or str(file_cfg.get("bot_token", "")).strip()
+                chat_id = chat_id or str(file_cfg.get("chat_id", "")).strip()
+                if bot_token and chat_id:
+                    break
+            except Exception:
+                pass
 
     if env_enabled in ("0", "false", "no", "off"):
         enabled = False
@@ -143,71 +146,142 @@ def send_telegram_message(
         _executor.submit(_post_telegram_sync, message, parse_mode, dedup_key, cooldown_sec)
 
 
+def _format_strategy_name(strategy: Optional[str]) -> str:
+    s = (strategy or "").upper()
+    if "MANUAL" in s and "SCALP" in s:
+        return "Manual Scalp"
+    if "REENTRY" in s or "STAGE2" in s:
+        return "Trend Runner (Re-Entry)"
+    if "TREND" in s or "RUNNER" in s or "MORNING" in s or "STAGE1" in s or "ORB" in s:
+        return "Trend Runner (15m ORB)"
+    if "KEY_LEVEL" in s or "FADE" in s or "REVERSE" in s:
+        return "Key Levels"
+    if "MIDPOINT" in s:
+        return "Midpoint Scalp"
+    return strategy.replace("_", " ").title() if strategy else "Trend Runner (15m ORB)"
+
+
+def _clean_option_name(option_str: str) -> str:
+    """Strip strike moneyness tags like (ITM-150) / (ATM) for clean display."""
+    if not option_str:
+        return ""
+    return re.sub(r"\s*\([^)]*\)", "", option_str).strip()
+
+
 def notify_trade_entry(
     symbol: str,
     stage: str,
     side: str,
     option_str: str,
-    spot_entry: float,
-    sl_pts: float,
-    initial_sl: float,
-    lots: int,
-    qty: int,
+    spot_entry: Optional[float] = None,
+    sl_pts: float = 0.0,
+    initial_sl: Optional[float] = None,
+    lots: int = 1,
+    qty: int = 0,
     target_pts: Optional[float] = None,
     option_symbol: Optional[str] = None,
     option_entry_price: Optional[float] = None,
     vix_chg: Optional[float] = None,
     order_id: Optional[str] = None,
     mode: str = "PAPER",
+    option_sl_px: Optional[float] = None,
+    entry_time: Optional[str] = None,
 ) -> None:
-    icon = "🟢" if side in ("LONG", "CALL") else "🔴"
-    opt_display = option_symbol or option_str
-    tgt_line = f"Target: <code>+{target_pts:.1f} pts</code>\n" if target_pts else ""
-    opt_px_line = f"Option Fill: <code>₹{option_entry_price:.2f}</code>\n" if option_entry_price else ""
-    vix_line = f"India VIX Δ: <code>{vix_chg:+.2f}%</code>\n" if vix_chg is not None else ""
-    ord_line = f"Order ID: <code>{_escape_html(order_id)}</code>\n" if order_id else ""
+    is_bullish = side.upper() in ("LONG", "CALL")
+    action = "BUY CALL" if is_bullish else "BUY PUT"
+    dot = "🟢" if is_bullish else "🔴"
+    strat_name = _format_strategy_name(stage)
+    raw_opt = option_symbol or option_str
+    clean_opt = _clean_option_name(raw_opt)
+    if clean_opt and symbol.upper() not in clean_opt.upper():
+        clean_opt = f"{symbol} {clean_opt}"
+    now_ist = entry_time or datetime.now(IST).strftime("%H:%M")
+
+    prem_lines = []
+    if option_entry_price and option_entry_price > 0:
+        prem_lines.append(f"💵 <b>Option Entry Price:</b> ₹{option_entry_price:,.2f}")
+        total_prem = option_entry_price * qty
+        prem_lines.append(f"💼 <b>Capital Deployed:</b> ₹{total_prem:,.2f}")
+    prem_block = ("\n" + "\n".join(prem_lines)) if prem_lines else ""
+
+    loc_lines = []
+    if spot_entry is not None and spot_entry > 0 and initial_sl is not None:
+        loc_lines.append(f"📍 <b>Spot Entry:</b> {spot_entry:,.2f}")
+        loc_lines.append(f"🛑 <b>Stop Loss:</b> {initial_sl:,.2f} ({sl_pts:.1f} pts)")
+    elif option_sl_px is not None and option_sl_px > 0:
+        loc_lines.append(f"🛑 <b>Stop Loss:</b> ₹{option_sl_px:,.2f} ({sl_pts:.1f} pts)")
+    elif sl_pts > 0:
+        loc_lines.append(f"🛑 <b>Trailing SL:</b> {sl_pts:.1f} pts")
+    if target_pts:
+        loc_lines.append(f"🎯 <b>Target:</b> +{target_pts:.0f} pts")
+    if vix_chg is not None:
+        mom = "Bullish Momentum Confirmed" if is_bullish else "Bearish Momentum Confirmed"
+        loc_lines.append(f"🌊 <b>India VIX Δ:</b> {vix_chg:+.2f}% ({mom})")
+    loc_block = ("\n\n" + "\n".join(loc_lines)) if loc_lines else ""
+
+    if "MANUAL" in (stage or "").upper():
+        footer = f"🛡️ <i>Trailing SL / Target active · Order #{_escape_html(order_id)}</i>" if order_id else "🛡️ <i>Manual Scalp Live Execution</i>"
+    else:
+        footer = "🛡️ <i>Trailing 5m 20-EMA active (No ratchets · Clean exit on signal)</i>"
 
     msg = (
-        f"{icon} <b>TRADE ENTRY [{_escape_html(mode.upper())}] — {_escape_html(symbol)}</b>\n"
-        f"Setup: <code>{_escape_html(stage)}</code> | Side: <b>{_escape_html(side)}</b>\n"
-        f"Contract: <code>{_escape_html(opt_display)}</code>\n"
-        f"Qty: <b>{lots} Lot(s)</b> ({qty} qty)\n"
-        f"Spot Entry: <code>{spot_entry:.2f}</code> | SL: <code>{initial_sl:.2f}</code> (-{sl_pts:.1f} pts)\n"
-        f"{opt_px_line}{tgt_line}{vix_line}{ord_line}"
+        f"{dot} <b>TRADE ENTRY · {_escape_html(symbol)}</b>\n\n"
+        f"⚡ <b>Setup:</b> {_escape_html(strat_name)}\n"
+        f"🎯 <b>Position Taken:</b> <b>{action} · {_escape_html(clean_opt)}</b>\n"
+        f"📦 <b>Size:</b> {lots} Lot{'s' if lots > 1 else ''} ({qty} qty)"
+        f"{prem_block}"
+        f"{loc_block}\n\n"
+        f"⏰ <b>Entry Time:</b> {_escape_html(now_ist)} IST\n"
+        f"{footer}"
     )
-    send_telegram_message(msg, dedup_key=f"entry_{symbol}_{option_str}")
+    dedup = f"entry_{symbol}_{option_str}_{order_id}" if order_id else f"entry_{symbol}_{option_str}"
+    send_telegram_message(msg, dedup_key=dedup)
 
 
 def notify_trade_exit(
     symbol: str,
     side: str,
     option_str: str,
-    pnl_pts: float,
+    pnl_pts: Optional[float],
     option_pnl_pts: Optional[float],
     pnl_rupees: float,
     exit_reason: str,
-    exit_price: float,
+    exit_price: Optional[float],
     exit_time: str,
     total_lots: int,
     qty: int,
     order_id: Optional[str] = None,
     mode: str = "PAPER",
+    option_exit_price: Optional[float] = None,
+    strategy: Optional[str] = "Trend Runner",
 ) -> None:
-    win = pnl_rupees >= 0
-    icon = "✅" if win else "❌"
-    opt_line = f"Option P&amp;L: <code>{option_pnl_pts:+.2f} pts</code>\n" if option_pnl_pts is not None else ""
-    ord_line = f"Exit Order ID: <code>{_escape_html(order_id)}</code>\n" if order_id else ""
+    badge_icon = "🟢" if pnl_rupees >= 0 else "🔴"
+    badge_pnl = f"+₹{pnl_rupees:,.2f}" if pnl_rupees >= 0 else f"-₹{abs(pnl_rupees):,.2f}"
+    clean_opt = _clean_option_name(option_str)
+    if clean_opt and symbol.upper() not in clean_opt.upper():
+        clean_opt = f"{symbol} {clean_opt}"
+    clean_reason = exit_reason.replace("_", " ").title()
+    strat_name = _format_strategy_name(strategy)
+    opt_pts_str = f" ({option_pnl_pts:+.2f} pts)" if option_pnl_pts is not None and option_pnl_pts != 0 else ""
+
+    exit_px_val = option_exit_price if (option_exit_price is not None and option_exit_price > 0) else (exit_price or 0.0)
+    px_line = f"💵 <b>Exit Price:</b> ₹{exit_px_val:,.2f}\n" if exit_px_val > 0 else ""
+    spot_line = f"📊 <b>Spot Movement:</b> {pnl_pts:+.1f} pts\n" if pnl_pts is not None else ""
+    time_display = exit_time if "IST" in exit_time else f"{exit_time} IST"
+    ord_note = f" · Order #{_escape_html(order_id)}" if order_id else ""
 
     msg = (
-        f"{icon} <b>TRADE EXIT [{_escape_html(mode.upper())}] — {_escape_html(symbol)}</b>\n"
-        f"Contract: <code>{_escape_html(option_str)}</code> ({total_lots} Lot / {qty} qty)\n"
-        f"Reason: <b>{_escape_html(exit_reason)}</b> @ <code>{exit_time}</code>\n"
-        f"Spot Exit: <code>{exit_price:.2f}</code> (<code>{pnl_pts:+.2f} pts</code>)\n"
-        f"{opt_line}"
-        f"Realized P&amp;L: <b>₹{pnl_rupees:+,.2f}</b>\n"
-        f"{ord_line}"
+        f"🏁 <b>TRADE EXIT · {_escape_html(symbol)}</b>\n\n"
+        f"💰 <b>Realized PnL:</b> {badge_icon} <b>{badge_pnl}</b>{opt_pts_str}\n"
+        f"🎯 <b>Position Closed:</b> {_escape_html(clean_opt)} ({total_lots} Lot{'s' if total_lots > 1 else ''} / {qty} qty)\n\n"
+        f"{px_line}"
+        f"📍 <b>Exit Reason:</b> <b>{_escape_html(clean_reason)}</b>\n"
+        f"⏰ <b>Exit Time:</b> {_escape_html(time_display)}\n"
+        f"{spot_line}\n"
+        f"⚡ <i>Strategy: {_escape_html(strat_name)}{ord_note}</i>"
     )
-    send_telegram_message(msg, dedup_key=f"exit_{symbol}_{exit_time}")
+    dedup = f"exit_{symbol}_{order_id}" if order_id else f"exit_{symbol}_{exit_time}"
+    send_telegram_message(msg, dedup_key=dedup)
 
 
 def notify_system(title: str, details: str, level: str = "INFO") -> None:

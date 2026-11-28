@@ -44,7 +44,13 @@ from risk_guardian import (
     is_risk_locked,
     square_off_all_kotak_positions,
 )
-from telegram_notifier import is_configured, send_telegram_message
+from telegram_notifier import (
+    is_configured,
+    notify_system,
+    notify_trade_entry,
+    notify_trade_exit,
+    send_telegram_message,
+)
 
 logger = logging.getLogger("web_panel")
 
@@ -116,6 +122,44 @@ def _record_scalp_order_csv(
         logger.warning(f"Failed to record scalp order CSV: {exc}")
 
 
+def _notify_scalp_exit(
+    sym: str,
+    qty: int,
+    is_long: bool,
+    fill_px: float,
+    entry_px: float,
+    exit_reason: str,
+    order_id: str,
+) -> None:
+    """Send a manual scalp exit notification using the main engine's format."""
+    if not is_configured():
+        return
+    u = sym.upper()
+    idx = "SENSEX" if u.startswith("SENSEX") else ("NIFTY" if u.startswith("NIFTY") else sym)
+    lot_sz = 20 if idx == "SENSEX" else (65 if idx == "NIFTY" else 1)
+    lots = max(1, abs(qty) // lot_sz)
+    side = "CALL" if u.endswith("CE") else ("PUT" if u.endswith("PE") else ("LONG" if is_long else "SHORT"))
+    opt_pnl_pts = ((fill_px - entry_px) if is_long else (entry_px - fill_px)) if (fill_px > 0 and entry_px > 0) else None
+    pnl_rupees = (opt_pnl_pts * abs(qty)) if opt_pnl_pts is not None else 0.0
+    notify_trade_exit(
+        symbol=idx,
+        side=side,
+        option_str=sym,
+        pnl_pts=None,
+        option_pnl_pts=opt_pnl_pts,
+        pnl_rupees=pnl_rupees,
+        exit_reason=exit_reason,
+        exit_price=None,
+        exit_time=datetime.now(IST).strftime("%H:%M:%S"),
+        total_lots=lots,
+        qty=abs(qty),
+        order_id=order_id or None,
+        mode="LIVE",
+        option_exit_price=fill_px if fill_px > 0 else None,
+        strategy="Manual Scalp",
+    )
+
+
 def _scalp_sl_tp_watcher_loop(stop_event: Optional[threading.Event] = None) -> None:
     """Monitor manual scalp open positions for auto SL/TP exits."""
     while not (stop_event and stop_event.is_set()):
@@ -172,8 +216,7 @@ def _scalp_sl_tp_watcher_loop(stop_event: Optional[threading.Event] = None) -> N
                             _SCALP_MONITORS.pop(sym, None)
                             _BROKER_CACHE["ts"] = 0.0
                             logger.info(f"[SCALP] {exit_reason} -> Exited {sym} @ ₹{fill_px:.2f} (Order {oid})")
-                            if is_configured():
-                                send_telegram_message(f"⚡ <b>Manual Scalp Exit</b>\n{sym}\nReason: {exit_reason}\nFill: ₹{fill_px:.2f}", blocking=False)
+                            _notify_scalp_exit(sym, abs(net_qty), is_long, fill_px, entry_px, exit_reason, oid)
                         except Exception as exc:
                             logger.error(f"[SCALP] Auto-exit failed for {sym}: {exc}")
         except Exception:
@@ -650,6 +693,12 @@ class PanelHandler(BaseHTTPRequestHandler):
                 side = -1 if net_qty > 0 else 1
                 try:
                     mon = _SCALP_MONITORS.pop(sym, None) or {}
+                    entry_px = float(mon.get("entry_px") or data.get("avg_price") or 0.0)
+                    if entry_px <= 0:
+                        for p in (_BROKER_CACHE.get("positions") or []):
+                            if p.get("symbol") == sym:
+                                entry_px = float(p.get("avg_price") or 0.0)
+                                break
                     if mon.get("sl_order_id"):
                         cancel_kotak_order(mon["sl_order_id"])
                     if mon.get("tp_order_id"):
@@ -663,6 +712,7 @@ class PanelHandler(BaseHTTPRequestHandler):
                     )
                     _BROKER_CACHE["ts"] = 0.0
                     _record_scalp_order_csv("SELL" if side == -1 else "BUY", sym, abs(net_qty), oid, fill_px, "MANUAL_EXIT")
+                    _notify_scalp_exit(sym, abs(net_qty), net_qty > 0, fill_px, entry_px, "MANUAL_EXIT", oid)
                     self._send_json(200, {"ok": True, "message": f"Exited {sym} (Order ID: {oid} @ ₹{fill_px:.2f})."})
                 except Exception as exc:
                     self._send_json(500, {"ok": False, "message": f"Exit failed for {sym}: {exc}"})
@@ -749,9 +799,24 @@ class PanelHandler(BaseHTTPRequestHandler):
                 _BROKER_CACHE["ts"] = 0.0
                 logger.info(f"[SCALP] FILLED BUY {qty}x {opt_sym} @ ₹{fill_px:.2f} (Order {oid} | TL {sl_pts} | TP {tp_pts})")
                 if is_configured():
-                    send_telegram_message(
-                        f"⚡ <b>Manual Scalp FILLED</b>\n<code>{opt_sym}</code>\nQty: {qty} ({lots} Lot)\nFill: ₹{fill_px:.2f}\nOrder: <code>{oid}</code>",
-                        blocking=False,
+                    quotes = _get_latest_market_quotes()
+                    notify_trade_entry(
+                        symbol=idx,
+                        stage="MANUAL_SCALP",
+                        side="CALL" if opt_type == "CE" else "PUT",
+                        option_str=f"{strike}{opt_type}",
+                        spot_entry=None,
+                        sl_pts=sl_pts,
+                        initial_sl=None,
+                        lots=lots,
+                        qty=qty,
+                        target_pts=tp_pts if tp_pts > 0 else None,
+                        option_symbol=opt_sym,
+                        option_entry_price=fill_px if fill_px > 0 else None,
+                        vix_chg=quotes.get("vix_chg"),
+                        order_id=oid,
+                        mode="LIVE",
+                        option_sl_px=max(0.05, fill_px - sl_pts) if (sl_pts > 0 and fill_px > 0) else None,
                     )
                 self._send_json(200, {
                     "ok": True,
@@ -764,6 +829,8 @@ class PanelHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 _record_scalp_order_csv("BUY", opt_sym, qty, "", 0.0, str(exc), status="REJECTED")
                 logger.error(f"[SCALP] REJECTED BUY {qty}x {opt_sym}: {exc}")
+                if is_configured():
+                    notify_system("Manual Scalp Order Error", f"Contract: {opt_sym}\nQty: {qty}\nError: {exc}", level="ERROR")
                 self._send_json(200, {"ok": False, "message": f"REJECTED: {opt_sym} — {exc}"})
             return
 
