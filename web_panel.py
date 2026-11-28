@@ -434,6 +434,75 @@ def _read_today_trades() -> list[dict]:
     return today_rows[-20:] if today_rows else rows[-15:]
 
 
+def _read_calendar_performance(month_str: str) -> dict:
+    """Group closed trades by YYYY-MM-DD for calendar view."""
+    target_month = (month_str or "").strip()[:7] or datetime.now(IST).strftime("%Y-%m")
+    candidates = [
+        ROOT / "data" / "performance" / "trend_runner_trades.csv",
+        ROOT / "paper" / "performance" / "trend_runner_trades.csv",
+    ]
+    rows: list[dict] = []
+    seen_keys: set[tuple] = set()
+    for csv_path in candidates:
+        if not csv_path.exists():
+            continue
+        try:
+            with csv_path.open("r", encoding="utf-8") as f:
+                for r in csv.DictReader(f):
+                    d_str = str(r.get("date", "")).strip()
+                    if not d_str.startswith(target_month):
+                        continue
+                    key = (d_str, r.get("symbol"), r.get("entry_time"), r.get("exit_time"), r.get("option"))
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+                    rows.append(r)
+        except Exception:
+            pass
+
+    days: dict[str, dict] = {}
+    month_pnl = 0.0
+    month_wins = 0
+    for r in rows:
+        d_str = str(r.get("date", "")).strip()
+        pnl = float(r.get("pnl_rupees") or 0.0)
+        month_pnl += pnl
+        if pnl >= 0:
+            month_wins += 1
+        bucket = days.setdefault(d_str, {"net_pnl": 0.0, "trades_count": 0, "wins": 0, "losses": 0, "trades": []})
+        bucket["net_pnl"] = round(bucket["net_pnl"] + pnl, 2)
+        bucket["trades_count"] += 1
+        if pnl >= 0:
+            bucket["wins"] += 1
+        else:
+            bucket["losses"] += 1
+        bucket["trades"].append({
+            "symbol": r.get("symbol", ""),
+            "side": r.get("side", ""),
+            "option": r.get("option", ""),
+            "option_symbol": r.get("option_symbol") or r.get("option", ""),
+            "entry_time": r.get("entry_time", ""),
+            "exit_time": r.get("exit_time", ""),
+            "lots": r.get("lots") or r.get("total_lots") or "1",
+            "entry_price": r.get("entry_price", ""),
+            "exit_price": r.get("exit_price", ""),
+            "option_pnl_points": r.get("option_pnl_points", ""),
+            "pnl_rupees": round(pnl, 2),
+            "exit_reason": r.get("exit_reason", ""),
+        })
+
+    total_trades = len(rows)
+    return {
+        "ok": True,
+        "month": target_month,
+        "month_pnl": round(month_pnl, 2),
+        "month_trades": total_trades,
+        "win_rate": round((month_wins / total_trades) * 100.0, 1) if total_trades > 0 else 0.0,
+        "trading_days": len(days),
+        "days": days,
+    }
+
+
 _PANEL_SESSIONS: dict[str, float] = {}
 _PIN_FAILS: dict[str, tuple[int, float]] = {}
 _SESSION_TTL_SEC = 12 * 3600
@@ -483,7 +552,7 @@ class PanelHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed_path = urlparse(self.path).path
-        if parsed_path in ("/", "/panel.html", "/scalp"):
+        if parsed_path in ("/", "/panel.html", "/scalp", "/performance"):
             body = PANEL_HTML.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -559,6 +628,13 @@ class PanelHandler(BaseHTTPRequestHandler):
                 "logs": _read_recent_logs(60),
                 "checks": _build_health_checks(tok, locked),
             })
+            return
+
+        if parsed_path == "/api/performance":
+            parsed = urlparse(self.path)
+            qs = parse_qs(parsed.query)
+            month_str = str((qs.get("month") or [""])[0]).strip()
+            self._send_json(200, _read_calendar_performance(month_str))
             return
 
         if self.path.startswith("/api/scalp/expiries"):
@@ -641,12 +717,35 @@ class PanelHandler(BaseHTTPRequestHandler):
             self._send_json(401, {"ok": False, "locked": True, "error": "Kotak Neo PIN required"})
             return
 
+        if self.path == "/api/auth/reset_pin":
+            _update_env_file({"NEO_MPIN": "", "PANEL_PIN": "", "WEB_PANEL_PIN": ""})
+            tok_file = ROOT / "kotak_token.json"
+            if tok_file.exists():
+                try:
+                    tok_file.unlink()
+                except Exception:
+                    pass
+            _PANEL_SESSIONS.clear()
+            _BROKER_CACHE["ts"] = 0.0
+            self._send_json(
+                200,
+                {"ok": True, "pin_configured": False, "message": "PIN & Kotak session reset. Enter new account MPIN & credentials in Settings."},
+                extra_headers={"Set-Cookie": "tr_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"},
+            )
+            return
+
         if self.path == "/api/settings":
             try:
                 env_updates = data.get("env") or {}
+                new_session_cookie = None
                 if env_updates:
                     clean_updates = {k: str(v) for k, v in env_updates.items() if str(v).strip() != ""}
                     _update_env_file(clean_updates)
+                    if any(k in clean_updates for k in ("NEO_MPIN", "PANEL_PIN", "WEB_PANEL_PIN", "KOTAK_MPIN")):
+                        _PANEL_SESSIONS.clear()
+                        tok = secrets.token_urlsafe(32)
+                        _PANEL_SESSIONS[tok] = time.time() + _SESSION_TTL_SEC
+                        new_session_cookie = f"tr_session={tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age={_SESSION_TTL_SEC}"
                     if "STRIKE_MODE" in clean_updates:
                         for eng in _ENGINES_REF.values():
                             eng.strike_mode = clean_updates["STRIKE_MODE"].strip().lower()
@@ -712,7 +811,8 @@ class PanelHandler(BaseHTTPRequestHandler):
                     except Exception as exc:
                         logger.warning(f"Failed to update portfolio_config.json: {exc}")
 
-                self._send_json(200, {"ok": True, "message": "Settings saved and applied live!"})
+                hdrs = {"Set-Cookie": new_session_cookie} if new_session_cookie else None
+                self._send_json(200, {"ok": True, "message": "Settings saved and applied live!"}, extra_headers=hdrs)
             except Exception as exc:
                 self._send_json(500, {"ok": False, "message": f"Save failed: {exc}"})
             return

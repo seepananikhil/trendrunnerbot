@@ -847,6 +847,75 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     }
 
+    /* PERFORMANCE CALENDAR */
+    #viewPerformance {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .perf-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+      gap: 14px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .cal-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 6px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .cal-cell {
+      min-height: 62px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 6px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .cal-cell.empty {
+      background: transparent;
+      border-color: transparent;
+      cursor: default;
+    }
+    .cal-cell:not(.empty):hover { border-color: var(--brand); }
+    .cal-cell.win { background: #ecfdf5; border-color: #a7f3d0; }
+    .cal-cell.loss { background: #fef2f2; border-color: #fecaca; }
+    .cal-cell.selected { outline: 2px solid var(--brand); outline-offset: -1px; }
+    .cal-day-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .cal-pnl {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .cal-cnt {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
     /* MOBILE RESPONSIVE LAYOUT (<= 768px) */
     @media (max-width: 768px) {
       html, body, .app-layout {
@@ -924,7 +993,7 @@
         overflow: visible;
         padding: 10px 10px 76px 10px;
       }
-      #viewDashboard, #viewScalp, #viewSettings {
+      #viewDashboard, #viewScalp, #viewPerformance, #viewSettings {
         height: auto;
         overflow: visible;
       }
@@ -933,7 +1002,7 @@
         gap: 8px;
       }
       .metric-value { font-size: 17px; }
-      .workbench-grid, .scalp-grid, .settings-grid {
+      .workbench-grid, .scalp-grid, .perf-layout, .settings-grid {
         grid-template-columns: 1fr;
         height: auto;
         overflow: visible;
@@ -990,6 +1059,10 @@
           <button id="navScalp" class="side-nav-item" onclick="switchView('scalp')">
             <span>🎯</span>
             <span>Manual Scalp</span>
+          </button>
+          <button id="navPerformance" class="side-nav-item" onclick="switchView('performance')">
+            <span>📅</span>
+            <span>Performance</span>
           </button>
           <button id="navSettings" class="side-nav-item" onclick="switchView('settings')">
             <span>⚙️</span>
@@ -1328,7 +1401,63 @@
         </div>
       </div>
 
-      <!-- VIEW 3: SETTINGS VIEW (2 CLEAN TABS) -->
+      <!-- VIEW 3: PERFORMANCE CALENDAR -->
+      <div id="viewPerformance" class="hidden">
+        <div class="perf-layout">
+          <div class="card-left">
+            <div class="right-header" style="flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn" style="width:auto;padding:4px 10px;" onclick="changePerfMonth(-1)">◀</button>
+                <span id="perfMonthTitle" style="font-size:14px;font-weight:700;min-width:130px;text-align:center;">—</span>
+                <button class="btn" style="width:auto;padding:4px 10px;" onclick="changePerfMonth(1)">▶</button>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <span id="perfMonthPnl" class="badge badge-ok" style="font-family:var(--font-mono);">P&amp;L: ₹0</span>
+                <span id="perfMonthTrades" class="badge badge-warn">0 Trades</span>
+                <span id="perfMonthWr" class="badge badge-ok">WR: 0%</span>
+              </div>
+            </div>
+            <div class="tab-content-pane">
+              <div class="cal-weekdays">
+                <div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+              </div>
+              <div id="perfCalGrid" class="cal-grid"></div>
+            </div>
+          </div>
+
+          <div class="card-right">
+            <div class="right-header">
+              <div>
+                <div id="perfDayTitle" style="font-size:13.5px;font-weight:700;">Select a day</div>
+                <div id="perfDaySummary" style="font-size:11.5px;color:var(--text-muted);">Click any calendar day to inspect P&amp;L and option trades.</div>
+              </div>
+            </div>
+            <div class="tab-content-pane">
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Option</th>
+                      <th>Side</th>
+                      <th>Lots</th>
+                      <th>Pts</th>
+                      <th>P&amp;L</th>
+                    </tr>
+                  </thead>
+                  <tbody id="perfDayTradesBody">
+                    <tr>
+                      <td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No day selected.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 4: SETTINGS VIEW (2 CLEAN TABS) -->
       <div id="viewSettings" class="hidden">
         <div style="width:100%;max-width:680px;margin:0 auto 12px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div>
@@ -1492,9 +1621,12 @@
               <div class="hint">Send <code>/start</code> to your bot first, then click Detect.</div>
             </div>
 
-            <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border);">
-              <button class="btn btn-primary" onclick="saveAccountSettings()">
+            <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-primary" style="flex:1;" onclick="saveAccountSettings()">
                 <span>🔑 Save &amp; Reconnect Accounts</span>
+              </button>
+              <button class="btn btn-danger" style="width:auto;" onclick="resetAccountPin()" title="Clear Kotak MPIN & session to setup a new account">
+                <span>🔄 Reset PIN &amp; Account</span>
               </button>
             </div>
           </div>
@@ -1570,18 +1702,22 @@
     function switchView(view) {
       document.getElementById("viewDashboard").classList.toggle("hidden", view !== 'dashboard');
       document.getElementById("viewScalp").classList.toggle("hidden", view !== 'scalp');
+      document.getElementById("viewPerformance").classList.toggle("hidden", view !== 'performance');
       document.getElementById("viewSettings").classList.toggle("hidden", view !== 'settings');
 
       document.getElementById("navDashboard").classList.toggle("active", view === 'dashboard');
       document.getElementById("navScalp").classList.toggle("active", view === 'scalp');
+      document.getElementById("navPerformance").classList.toggle("active", view === 'performance');
       document.getElementById("navSettings").classList.toggle("active", view === 'settings');
 
       if (view === 'scalp') {
         updateScalpMoneyness();
         fetchScalpExpiries();
+      } else if (view === 'performance') {
+        loadPerformanceCalendar();
       }
       try {
-        const targetPath = view === 'scalp' ? '/scalp' : '/';
+        const targetPath = view === 'scalp' ? '/scalp' : (view === 'performance' ? '/performance' : '/');
         if (window.location.pathname !== targetPath) {
           window.history.replaceState(null, "", targetPath);
         }
@@ -2435,6 +2571,8 @@
       document.getElementById("btnLockPanel").classList.toggle("hidden", !pinConfigured);
       if (window.location.pathname === "/scalp") {
         switchView("scalp");
+      } else if (window.location.pathname === "/performance") {
+        switchView("performance");
       }
       refreshState();
       if (!_pollStarted) {
@@ -2486,6 +2624,116 @@
         await fetch("/api/auth/lock", { method: "POST" });
       } catch (e) {}
       showPinLock();
+    }
+
+    let _perfDate = new Date();
+    let _perfDays = {};
+    let _perfSelectedDay = "";
+
+    function changePerfMonth(delta) {
+      _perfDate = new Date(_perfDate.getFullYear(), _perfDate.getMonth() + delta, 1);
+      _perfSelectedDay = "";
+      loadPerformanceCalendar();
+    }
+
+    async function loadPerformanceCalendar() {
+      const y = _perfDate.getFullYear();
+      const m = String(_perfDate.getMonth() + 1).padStart(2, "0");
+      const ym = `${y}-${m}`;
+      document.getElementById("perfMonthTitle").textContent = _perfDate.toLocaleString("en-IN", { month: "long", year: "numeric" });
+      try {
+        const res = await fetch(`/api/performance?month=${ym}`);
+        if (!res.ok) return;
+        const d = await res.json();
+        _perfDays = d.days || {};
+
+        const pnl = Number(d.month_pnl || 0);
+        const pnlEl = document.getElementById("perfMonthPnl");
+        pnlEl.textContent = `P&L: ${pnl >= 0 ? '+' : '-'}₹${Math.abs(pnl).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+        pnlEl.className = "badge " + (pnl >= 0 ? "badge-ok" : "badge-err");
+        document.getElementById("perfMonthTrades").textContent = `${d.month_trades || 0} Trades`;
+        document.getElementById("perfMonthWr").textContent = `WR: ${d.win_rate || 0}%`;
+
+        renderPerfCalendar(y, _perfDate.getMonth());
+      } catch (e) {}
+    }
+
+    function renderPerfCalendar(year, monthIdx) {
+      const grid = document.getElementById("perfCalGrid");
+      const firstDay = new Date(year, monthIdx, 1).getDay();
+      const offset = (firstDay + 6) % 7; // Mon=0 .. Sun=6
+      const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+      const mStr = String(monthIdx + 1).padStart(2, "0");
+
+      let html = "";
+      for (let i = 0; i < offset; i++) {
+        html += `<div class="cal-cell empty"></div>`;
+      }
+
+      let autoSelect = _perfSelectedDay;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dStr = `${year}-${mStr}-${String(day).padStart(2, "0")}`;
+        const info = _perfDays[dStr];
+        if (info && !autoSelect) autoSelect = dStr;
+        const cls = info ? (info.net_pnl >= 0 ? "win" : "loss") : "";
+        const sel = dStr === autoSelect ? "selected" : "";
+        const pnlTxt = info ? `${info.net_pnl >= 0 ? '+' : '-'}₹${Math.abs(info.net_pnl).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
+        const cntTxt = info ? `${info.trades_count}T` : "";
+        html += `<div class="cal-cell ${cls} ${sel}" onclick="selectPerfDay('${dStr}')">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="cal-day-num">${day}</span>
+            <span class="cal-cnt">${cntTxt}</span>
+          </div>
+          <div class="cal-pnl ${info ? (info.net_pnl >= 0 ? 'pnl-pos' : 'pnl-neg') : ''}">${pnlTxt}</div>
+        </div>`;
+      }
+      grid.innerHTML = html;
+      if (autoSelect) selectPerfDay(autoSelect, false);
+    }
+
+    function selectPerfDay(dStr, rerender = true) {
+      _perfSelectedDay = dStr;
+      if (rerender) renderPerfCalendar(_perfDate.getFullYear(), _perfDate.getMonth());
+      const info = _perfDays[dStr];
+      document.getElementById("perfDayTitle").textContent = dStr;
+      const tbody = document.getElementById("perfDayTradesBody");
+      if (!info || !info.trades || !info.trades.length) {
+        document.getElementById("perfDaySummary").textContent = "No closed trades on this day.";
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No trades recorded for ${dStr}.</td></tr>`;
+        return;
+      }
+      const p = Number(info.net_pnl || 0);
+      const pSign = p >= 0 ? "+" : "-";
+      document.getElementById("perfDaySummary").innerHTML = `Overall P&amp;L: <strong class="${p >= 0 ? 'pnl-pos' : 'pnl-neg'}">${pSign}₹${Math.abs(p).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong> · ${info.trades_count} Trades (${info.wins}W / ${info.losses}L)`;
+      tbody.innerHTML = info.trades.map(t => {
+        const tp = Number(t.pnl_rupees || 0);
+        const pts = t.option_pnl_points !== "" && t.option_pnl_points !== undefined ? Number(t.option_pnl_points).toFixed(1) : "—";
+        const optName = t.option_symbol || t.option || t.symbol;
+        const reason = (t.exit_reason || "").replace(/_/g, " ");
+        return `<tr>
+          <td style="font-family:var(--font-mono);font-size:11px;">${t.entry_time || ''}–${t.exit_time || ''}</td>
+          <td><strong style="font-family:var(--font-mono);font-size:11.5px;">${escapeHtml(optName)}</strong><div style="font-size:10px;color:var(--text-muted);">${escapeHtml(reason)}</div></td>
+          <td><span class="badge ${t.side === 'LONG' ? 'badge-ok' : 'badge-err'}">${escapeHtml(t.side)}</span></td>
+          <td style="font-family:var(--font-mono);">${t.lots || 1}</td>
+          <td style="font-family:var(--font-mono);">${pts}</td>
+          <td style="font-family:var(--font-mono);font-weight:700;" class="${tp >= 0 ? 'pnl-pos' : 'pnl-neg'}">${tp >= 0 ? '+' : '-'}₹${Math.abs(tp).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    async function resetAccountPin() {
+      if (!confirm("Reset Kotak Neo PIN & session? This unlocks the setup page so you can enter a new Kotak account and MPIN.")) return;
+      try {
+        const res = await fetch("/api/auth/reset_pin", { method: "POST" });
+        const d = await res.json();
+        showBannerToast(d.message || "Account & PIN reset.", !!d.ok);
+        if (d.ok) {
+          document.getElementById("btnLockPanel").classList.add("hidden");
+          refreshState();
+        }
+      } catch (e) {
+        showBannerToast("Reset failed: " + e, false);
+      }
     }
 
     async function checkAuthAndBoot() {
