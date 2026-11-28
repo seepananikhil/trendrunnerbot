@@ -373,19 +373,66 @@ def _build_health_checks(tok: dict, locked: bool) -> list[dict]:
     return [kotak_chk, feed_chk, rg_chk, strat_chk, tg_chk, cfg_chk]
 
 
+_INDEX_QUOTE_CACHE: dict[str, object] = {"ts": 0.0, "data": {}}
+
+
 def _get_latest_market_quotes() -> dict:
     today_s = datetime.now(IST).strftime("%Y-%m-%d")
     quotes_file = ROOT / "data" / "live" / f"quotes_{today_s}.json"
-    if not quotes_file.exists():
-        pattern = list((ROOT / "data" / "live").glob("quotes_*.json"))
-        if pattern:
-            quotes_file = sorted(pattern)[-1]
-        else:
-            return {}
-    try:
-        return json.loads(quotes_file.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    if quotes_file.exists():
+        try:
+            data = json.loads(quotes_file.read_text(encoding="utf-8"))
+            if data:
+                return data
+        except Exception:
+            pass
+
+    now_ts = time.time()
+    cached_data = _INDEX_QUOTE_CACHE.get("data") or {}
+    if cached_data and (now_ts - float(_INDEX_QUOTE_CACHE.get("ts") or 0.0) < 15.0):
+        return cached_data
+
+    client = get_kotak_client()
+    if client:
+        try:
+            raw = client.quotes(instrument_tokens=[
+                {"instrument_token": "SENSEX", "exchange_segment": "bse_cm"},
+                {"instrument_token": "Nifty 50", "exchange_segment": "nse_cm"},
+                {"instrument_token": "India VIX", "exchange_segment": "nse_cm"},
+            ])
+            items = raw if isinstance(raw, list) else (raw.get("data", []) if isinstance(raw, dict) else [])
+            out: dict[str, dict] = {}
+            for item in items:
+                tok = str(item.get("exchange_token") or "").upper()
+                ltp = float(item.get("ltp") or (item.get("ohlc") or {}).get("close") or 0.0)
+                if ltp <= 0:
+                    continue
+                entry = {
+                    "ltp": round(ltp, 2),
+                    "change": round(float(item.get("change") or 0.0), 2),
+                    "per_change": round(float(item.get("per_change") or 0.0), 2),
+                    "time": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                if "SENSEX" in tok:
+                    out["sensex"] = entry
+                elif "NIFTY" in tok:
+                    out["nifty"] = entry
+                elif "VIX" in tok:
+                    out["vix"] = entry
+            if out:
+                _INDEX_QUOTE_CACHE["ts"] = now_ts
+                _INDEX_QUOTE_CACHE["data"] = out
+                return out
+        except Exception:
+            pass
+
+    pattern = list((ROOT / "data" / "live").glob("quotes_*.json"))
+    if pattern:
+        try:
+            return json.loads(sorted(pattern)[-1].read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
 
 
 def _read_today_api_orders() -> list[dict]:
