@@ -1411,7 +1411,7 @@
                 </div>
                 <div>
                   <label for="scalpExpiry">Expiry</label>
-                  <select id="scalpExpiry" class="form-control" style="padding:6px 9px;font-size:12px;font-weight:600;font-family:var(--font-mono);" onchange="fetchScalpQuotes()">
+                  <select id="scalpExpiry" class="form-control" style="padding:6px 9px;font-size:12px;font-weight:600;font-family:var(--font-mono);" onchange="setScalpQuotesLoading(); fetchScalpQuotes();">
                     <option value="">Nearest Weekly</option>
                   </select>
                 </div>
@@ -1430,15 +1430,15 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;">
                   <button type="button" class="btn" style="width:44px;height:36px;font-size:16px;" onclick="stepScalpStrike(-1)">−</button>
-                  <input id="scalpStrike" type="number" class="form-control" style="text-align:center;font-weight:800;font-family:var(--font-mono);font-size:16px;height:36px;" value="84500" oninput="onScalpStrikeDebounced()" onchange="onScalpStrikeInput()" />
+                  <input id="scalpStrike" type="number" step="100" class="form-control" style="text-align:center;font-weight:800;font-family:var(--font-mono);font-size:16px;height:36px;" value="84500" oninput="onScalpStrikeDebounced()" onchange="onScalpStrikeInput()" />
                   <button type="button" class="btn" style="width:44px;height:36px;font-size:16px;" onclick="stepScalpStrike(1)">+</button>
                 </div>
                 <div class="pill-row" style="margin-top:8px;">
-                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(-300)">-300</button>
-                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(-150)">-150</button>
-                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(0)">ATM</button>
-                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(150)">+150</button>
-                  <button type="button" class="pill-btn" style="padding:4px;" onclick="offsetScalpStrike(300)">+300</button>
+                  <button type="button" id="scalpOffM2" class="pill-btn" style="padding:4px;" onclick="stepOffsetScalpStrike(-2)">-200</button>
+                  <button type="button" id="scalpOffM1" class="pill-btn" style="padding:4px;" onclick="stepOffsetScalpStrike(-1)">-100</button>
+                  <button type="button" class="pill-btn" style="padding:4px;" onclick="stepOffsetScalpStrike(0)">ATM</button>
+                  <button type="button" id="scalpOffP1" class="pill-btn" style="padding:4px;" onclick="stepOffsetScalpStrike(1)">+100</button>
+                  <button type="button" id="scalpOffP2" class="pill-btn" style="padding:4px;" onclick="stepOffsetScalpStrike(2)">+200</button>
                 </div>
               </div>
 
@@ -1843,6 +1843,7 @@
 
       if (view === 'scalp') {
         updateScalpMoneyness();
+        if (!_scalpLastQuotes.ce && !_scalpLastQuotes.pe) setScalpQuotesLoading();
         fetchScalpExpiries();
       } else if (view === 'performance') {
         loadPerformanceCalendar();
@@ -2435,11 +2436,19 @@
     // MANUAL SCALP ENGINE
     function setScalpIndex(idx) {
       _scalpIndex = idx;
+      const step = getScalpStep();
       document.getElementById("scalpIdxSensex").classList.toggle("active", idx === "SENSEX");
       document.getElementById("scalpIdxNifty").classList.toggle("active", idx === "NIFTY");
-      document.getElementById("scalpStrike").value = getScalpAtm();
+      const strikeEl = document.getElementById("scalpStrike");
+      strikeEl.step = step;
+      strikeEl.value = getScalpAtm();
+      document.getElementById("scalpOffM2").textContent = `-${step * 2}`;
+      document.getElementById("scalpOffM1").textContent = `-${step}`;
+      document.getElementById("scalpOffP1").textContent = `+${step}`;
+      document.getElementById("scalpOffP2").textContent = `+${step * 2}`;
       updateScalpMoneyness();
       updateScalpQtyLabel();
+      setScalpQuotesLoading();
       fetchScalpExpiries();
     }
 
@@ -2463,8 +2472,22 @@
     let _scalpStrikeDebounce = null;
     let _scalpLastQuotes = { ce: 0, pe: 0 };
 
+    function setScalpQuotesLoading() {
+      const strike = document.getElementById("scalpStrike").value || getScalpAtm();
+      _scalpLastQuotes = { ce: 0, pe: 0 };
+      document.getElementById("scalpStrikeCePx").textContent = "⏳";
+      document.getElementById("scalpStrikePePx").textContent = "⏳";
+      document.getElementById("scalpCeLtp").textContent = "⏳ ...";
+      document.getElementById("scalpPeLtp").textContent = "⏳ ...";
+      document.getElementById("scalpCeSym").textContent = `Loading ${_scalpIndex} ${strike} CE...`;
+      document.getElementById("scalpPeSym").textContent = `Loading ${_scalpIndex} ${strike} PE...`;
+      document.getElementById("scalpCeAmt").textContent = "Fetching lot amount...";
+      document.getElementById("scalpPeAmt").textContent = "Fetching lot amount...";
+    }
+
     function onScalpStrikeDebounced() {
       updateScalpMoneyness();
+      setScalpQuotesLoading();
       clearTimeout(_scalpStrikeDebounce);
       _scalpStrikeDebounce = setTimeout(fetchScalpQuotes, 250);
     }
@@ -2472,20 +2495,24 @@
     function onScalpStrikeInput() {
       clearTimeout(_scalpStrikeDebounce);
       updateScalpMoneyness();
+      setScalpQuotesLoading();
       fetchScalpQuotes();
     }
 
     function stepScalpStrike(dir) {
       const el = document.getElementById("scalpStrike");
+      const step = getScalpStep();
       const cur = Number(el.value) || getScalpAtm();
-      el.value = cur + dir * getScalpStep();
+      el.value = Math.round(cur / step) * step + dir * step;
       updateScalpMoneyness();
+      setScalpQuotesLoading();
       fetchScalpQuotes();
     }
 
-    function offsetScalpStrike(pts) {
-      document.getElementById("scalpStrike").value = getScalpAtm() + pts;
+    function stepOffsetScalpStrike(mult) {
+      document.getElementById("scalpStrike").value = getScalpAtm() + mult * getScalpStep();
       updateScalpMoneyness();
+      setScalpQuotesLoading();
       fetchScalpQuotes();
     }
 
