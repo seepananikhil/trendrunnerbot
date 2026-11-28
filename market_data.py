@@ -141,7 +141,42 @@ class MarketDataStreamer:
         ok_nifty = self._sync_instrument_candles(client, "nse_cm", "Nifty 50", LIVE_DIR / f"nifty_1min_{day}.csv", day)
         time.sleep(1.0)
         ok_sensex = self._sync_instrument_candles(client, "bse_cm", "SENSEX", LIVE_DIR / f"sensex_1min_{day}.csv", day)
+        time.sleep(0.5)
+        self._sync_instrument_candles(client, "nse_cm", "INDIA VIX", LIVE_DIR / f"vix_1min_{day}.csv", day)
         return ok_nifty or ok_sensex
+
+    def _record_vix_1m_quote(self, day: str, ts: datetime, vix_payload: dict) -> None:
+        """Aggregate 3s live INDIA VIX quotes into 1-minute OHLC + per_change bars."""
+        ltp = float(vix_payload.get("ltp") or 0.0)
+        if ltp <= 0:
+            return
+        bar_ts = ts.strftime("%Y-%m-%d %H:%M:00")
+        chp = float(vix_payload.get("per_change") or 0.0)
+        prev_c = float(vix_payload.get("prev_close") or 0.0)
+        vix_csv = LIVE_DIR / f"vix_1min_live_{day}.csv"
+
+        cur = getattr(self, "_vix_cur_bar", None)
+        if cur is None or cur["Timestamp"] != bar_ts or cur["day"] != day:
+            if cur is not None and cur["day"] == day:
+                write_hdr = not vix_csv.exists() or vix_csv.stat().st_size == 0
+                with vix_csv.open("a", encoding="utf-8") as fh:
+                    if write_hdr:
+                        fh.write("Timestamp,Open,High,Low,Close,per_change,prev_close\n")
+                    fh.write(f"{cur['Timestamp']},{cur['Open']:.4f},{cur['High']:.4f},{cur['Low']:.4f},{cur['Close']:.4f},{cur['per_change']:.4f},{cur['prev_close']:.4f}\n")
+            self._vix_cur_bar = {
+                "day": day, "Timestamp": bar_ts,
+                "Open": ltp, "High": ltp, "Low": ltp, "Close": ltp,
+                "per_change": chp, "prev_close": prev_c,
+            }
+        else:
+            if ltp > cur["High"]:
+                cur["High"] = ltp
+            if ltp < cur["Low"]:
+                cur["Low"] = ltp
+            cur["Close"] = ltp
+            cur["per_change"] = chp
+            if prev_c > 0:
+                cur["prev_close"] = prev_c
 
     def poll_quotes_once(self, day: str) -> None:
         client = get_kotak_client()
@@ -177,6 +212,7 @@ class MarketDataStreamer:
                     }
                     if "vix" in tok.lower():
                         quotes_data["vix"] = payload
+                        self._record_vix_1m_quote(day, ts, payload)
                     elif "nifty" in tok.lower():
                         quotes_data["nifty"] = payload
                     elif "sensex" in tok.lower():
