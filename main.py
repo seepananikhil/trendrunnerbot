@@ -73,7 +73,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("engine")
 
-from broker_kotak import kotak_login, kotak_token_status, place_kotak_order
+from broker_kotak import available_kotak_funds, kotak_login, kotak_token_status, place_kotak_order
 from market_data import MarketDataStreamer
 from option_pricing import clear_scrip_cache, get_live_option_ltp
 from risk_guardian import clear_risk_lock, is_risk_locked, start_risk_guardian
@@ -84,6 +84,10 @@ from web_panel import start_web_panel
 
 STOP_EVENT = threading.Event()
 LIVE_ENGINES: Dict[str, TrendRunnerPaperEngine] = {}
+BOT_TELEMETRY: Dict[str, Any] = {
+    "nifty": {"status": "WAITING", "spot": 0.0, "or_high": 0.0, "or_low": 0.0, "ema20": 0.0, "vix_chg": 0.0, "bar_time": "--:--", "trades_today": 0},
+    "sensex": {"status": "WAITING", "spot": 0.0, "or_high": 0.0, "or_low": 0.0, "ema20": 0.0, "vix_chg": 0.0, "bar_time": "--:--", "trades_today": 0},
+}
 DUAL_CONFLUENCE_STATE: Dict[str, Any] = {
     "armed": {},
     "confirmed": None,
@@ -400,6 +404,7 @@ def strategy_runner_loop(symbol: str) -> None:
     processed_times: set[str] = set()
     last_mtime: float = 0.0
     last_processed_idx: int = 0
+    last_logged_bar: str = ""
 
     logger.info(f"Strategy loop started for {sym_upper} (lot_size={lot_size}).")
 
@@ -424,6 +429,7 @@ def strategy_runner_loop(symbol: str) -> None:
                 processed_times.clear()
                 last_mtime = 0.0
                 last_processed_idx = 0
+                last_logged_bar = ""
                 with _STATE_LOCK:
                     DUAL_CONFLUENCE_STATE["armed"].clear()
                     DUAL_CONFLUENCE_STATE["confirmed"] = None
@@ -464,7 +470,10 @@ def strategy_runner_loop(symbol: str) -> None:
                     sl_mode="fixed",
                     lots=lots_cfg,
                     sizing_mode=sizing_cfg,
-                    strike_mode=os.getenv("STRIKE_MODE", "itm150").strip().lower() or "itm150",
+                    strike_mode=os.getenv(
+                        f"{sym_upper}_STRIKE_MODE",
+                        inst_cfg.get("strike_mode", os.getenv("STRIKE_MODE", "itm300" if sym_upper == "SENSEX" else "itm150")),
+                    ).strip().lower(),
                     max_trades_per_day=int(port_cfg.get("max_trades_per_day", 3)),
                     call_cutoff_time=str(inst_cfg.get("call_cutoff_time", "10:45")),
                     reentry_cooloff_bars=int(inst_cfg.get("reentry_cooloff_bars", 20)),
@@ -482,7 +491,36 @@ def strategy_runner_loop(symbol: str) -> None:
                     live_trading=is_live_mode(),
                 )
                 engine.current_day_str = cur_day
+                engine.account_capital = float(os.getenv("ACCOUNT_CAPITAL", "25000") or 25000.0)
+                engine.capital_per_lot = float(os.getenv("CAPITAL_PER_LOT", "25000") or 25000.0)
+                engine.max_lots_cap = int(os.getenv("MAX_LOTS_CAP", "100") or 100)
                 LIVE_ENGINES[sym_lower] = engine
+
+            if engine.active_position is None:
+                base_cap = float(os.getenv("ACCOUNT_CAPITAL", "25000") or 25000.0)
+                if is_live_mode():
+                    if (time.time() - float(getattr(engine, "_last_funds_sync", 0.0))) >= 60.0:
+                        engine._last_funds_sync = time.time()
+                        try:
+                            f_res = available_kotak_funds()
+                            if f_res.get("ok") and float(f_res.get("available_equity_funds") or 0.0) > 0:
+                                engine._cached_live_cap = float(f_res["available_equity_funds"])
+                        except Exception:
+                            pass
+                    if getattr(engine, "_cached_live_cap", 0.0) > 0:
+                        base_cap = float(engine._cached_live_cap)
+                else:
+                    # Paper mode: compound Allocated Capital + cumulative paper realized P&L
+                    trades_csv = ROOT / "data" / "performance" / "trend_runner_trades.csv"
+                    if trades_csv.exists():
+                        try:
+                            tdf = pd.read_csv(trades_csv)
+                            if "pnl_rupees" in tdf.columns:
+                                base_cap = max(10000.0, base_cap + float(tdf["pnl_rupees"].fillna(0.0).sum()))
+                        except Exception:
+                            pass
+                if base_cap > 0:
+                    engine.account_capital = base_cap
 
             df5, or_high, or_low, or_range = compute_indicators(df1)
             if df5.empty:
@@ -509,6 +547,26 @@ def strategy_runner_loop(symbol: str) -> None:
                         logger.info(f"[{sym_upper}] Position Event: {res}")
                     processed_times.add(bar_t)
             last_processed_idx = max(0, len(df1) - 1)
+            latest_bar = df1.iloc[-1]
+            t1m = str(latest_bar.get("time_str", "--:--"))
+            spot_px = float(latest_bar.get("close") or 0.0)
+            ema20_val = float(getattr(engine, "ema20_5m", None) or 0.0)
+            BOT_TELEMETRY[sym_lower] = {
+                "status": "IN_POSITION" if engine.active_position else ("SCANNING" if t1m >= "09:30" else "BUILDING_OR"),
+                "spot": round(spot_px, 2),
+                "or_high": round(float(or_high or 0.0), 2),
+                "or_low": round(float(or_low or 0.0), 2),
+                "ema20": round(ema20_val, 2),
+                "vix_chg": round(float(vix_curr or 0.0), 2),
+                "bar_time": t1m,
+                "trades_today": engine.trades_today,
+            }
+            if t1m != last_logged_bar:
+                last_logged_bar = t1m
+                state_txt = "IN_POSITION" if engine.active_position else ("SCANNING" if t1m >= "09:30" else "BUILDING_OR")
+                logger.info(
+                    f"[{sym_upper}] [{t1m}] Spot {spot_px:.2f} | OR [{or_low:.2f}-{or_high:.2f}] | 5m EMA20 {ema20_val:.2f} | VIX {vix_curr:+.2f}% | {state_txt}"
+                )
         except Exception as exc:
             logger.exception(f"Error in {sym_upper} strategy loop: {exc}")
         time.sleep(2)
@@ -589,7 +647,7 @@ def main() -> None:
 
     start_risk_guardian(STOP_EVENT)
     start_telegram_bot(STOP_EVENT, status_provider=get_status_summary)
-    start_web_panel(STOP_EVENT, engines=LIVE_ENGINES)
+    start_web_panel(STOP_EVENT, engines=LIVE_ENGINES, telemetry=BOT_TELEMETRY, dual_state=DUAL_CONFLUENCE_STATE)
     threading.Thread(target=scheduler_loop, daemon=True, name="scheduler").start()
     threading.Thread(target=strategy_runner_loop, args=("NIFTY",), daemon=True, name="strategy-nifty").start()
     threading.Thread(target=strategy_runner_loop, args=("SENSEX",), daemon=True, name="strategy-sensex").start()

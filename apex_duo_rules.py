@@ -142,3 +142,53 @@ def is_high_conviction_sizing(symbol: str, vix_chg: float, or_range: float) -> b
     """
     or_cap = 450.0 if symbol.upper() == "SENSEX" else 75.0
     return abs(vix_chg) >= 4.0 and 0.0 < or_range < or_cap
+
+
+def compute_auto_scaled_lots(
+    symbol: str,
+    sizing_mode: str,
+    base_lots: int = 1,
+    account_capital: float = 25000.0,
+    capital_per_lot: float = 25000.0,
+    vix_chg: float = 0.0,
+    or_range: float = 0.0,
+    max_lots_cap: int = 100,
+) -> tuple[int, bool, str]:
+    """
+    Auto Step-Up Sizing Engine:
+    - Fixed mode: always uses base_lots (Default Lots).
+    - Auto Step-Up mode: stays at base_lots while capital < ₹50,000;
+      once capital >= ₹50,000, steps up to floor(capital / capital_per_lot)
+      (e.g. ₹50k -> 2 lots, ₹75k -> 3 lots, ₹1L -> 4 lots).
+    - High-Conviction (|VIX| >= 4.0%): adds +1 lot when capital >= ₹50,000.
+    """
+    mode = str(sizing_mode or "auto_scale").strip().lower()
+    default_lots = max(1, int(base_lots or 1))
+    if mode in ("fixed", "off", "disabled"):
+        return default_lots, False, f"Fixed {default_lots} lot(s)"
+
+    cap = max(10000.0, float(account_capital or 25000.0))
+    buffer = max(10000.0, float(capital_per_lot or 25000.0))
+    step_threshold = max(50000.0, buffer * 2.0)
+
+    if cap < step_threshold:
+        stepped_lots = default_lots
+    else:
+        stepped_lots = max(default_lots, int(cap // buffer))
+
+    is_momentum = abs(vix_chg) >= 4.0
+    if is_momentum:
+        if cap >= step_threshold:
+            final_lots = min(max_lots_cap, stepped_lots + 1)
+            reason = f"🔥 High-Conviction Setup: Stepped Up to {final_lots} Lots (₹{cap:,.0f})"
+        else:
+            final_lots = min(max_lots_cap, stepped_lots)
+            reason = f"🔥 High-Conviction Setup: {final_lots} Lot (Default < ₹{step_threshold:,.0f})"
+    else:
+        final_lots = min(max_lots_cap, stepped_lots)
+        if cap >= step_threshold:
+            reason = f"⚡ Auto Step-Up: {final_lots} Lots (Capital ₹{cap:,.0f})"
+        else:
+            reason = f"⚡ Default: {final_lots} Lot(s) (Step-Up at ₹{step_threshold:,.0f})"
+
+    return final_lots, is_momentum, reason

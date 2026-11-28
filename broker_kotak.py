@@ -13,10 +13,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 # Prevent neo_api_client file lock issues on midnight rotation
 os.environ["NEO_LOG_FILE_ENABLED"] = "false"
@@ -43,6 +44,13 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 _KOTAK_CLIENT: Optional[NeoAPI] = None
 _LAST_KOTAK_LOGIN_ATTEMPT: float = 0.0
+_LOGIN_LOCK = threading.Lock()
+
+
+def reconnect_kotak_client() -> None:
+    """Drop stale in-memory HTTP/2 client so next call rebuilds a fresh socket from saved token."""
+    global _KOTAK_CLIENT
+    _KOTAK_CLIENT = None
 
 
 def reset_kotak_session() -> None:
@@ -81,7 +89,17 @@ def load_kotak_config() -> dict:
     return cfg
 
 
-def kotak_login(totp_code: Optional[str] = None, mpin: Optional[str] = None) -> dict:
+def kotak_login(totp_code: Optional[str] = None, mpin: Optional[str] = None, force: bool = False) -> dict:
+    """Thread-safe 2-step TOTP + MPIN authentication with Kotak Neo."""
+    with _LOGIN_LOCK:
+        if not force and not totp_code:
+            cur = kotak_token_status(auto_login=False)
+            if cur.get("valid") and _KOTAK_CLIENT is not None:
+                return {"ok": True, "greeting_name": cur.get("greeting_name", ""), "ucc": cur.get("ucc", "")}
+        return _kotak_login_unlocked(totp_code=totp_code, mpin=mpin)
+
+
+def _kotak_login_unlocked(totp_code: Optional[str] = None, mpin: Optional[str] = None) -> dict:
     """Authenticate with Kotak Neo using 2-step TOTP + MPIN flow."""
     global _KOTAK_CLIENT
     if NeoAPI is None:
@@ -313,25 +331,11 @@ def place_kotak_order(
 
     ex_seg = exchange_segment or ("bse_fo" if "SENSEX" in symbol.upper() else "nse_fo")
     tt = "B" if side == 1 else "S"
-    resp = client.place_order(
-        exchange_segment=ex_seg,
-        product=product,
-        price="0",
-        order_type="MKT",
-        quantity=str(qty),
-        validity="DAY",
-        trading_symbol=symbol,
-        transaction_type=tt,
-        amo="NO",
-    )
 
-    err_str = str(resp)
-    if isinstance(resp, dict) and (resp.get("stCode") == 100008 or "unauthorized" in err_str.lower()):
-        kotak_login()
-        client = get_kotak_client()
-        resp = client.place_order(
+    def _submit(c: NeoAPI, prod: str) -> Any:
+        return c.place_order(
             exchange_segment=ex_seg,
-            product=product,
+            product=prod,
             price="0",
             order_type="MKT",
             quantity=str(qty),
@@ -341,25 +345,46 @@ def place_kotak_order(
             amo="NO",
         )
 
-    if isinstance(resp, dict) and product == "MIS" and (resp.get("stat") == "Not_Ok" or resp.get("error")):
+    def _is_unauth(val: Any) -> bool:
+        s = str(val).lower()
+        return (
+            (isinstance(val, dict) and val.get("stCode") in (100008, 401))
+            or "unauthorized" in s
+            or "invalid session" in s
+            or "session expired" in s
+            or "401" in s
+        )
+
+    try:
+        resp = _submit(client, product)
+    except Exception as exc:
+        if _is_unauth(exc):
+            resp = {"stat": "Not_Ok", "errMsg": str(exc), "stCode": 100008}
+        else:
+            raise
+
+    reauthed_ok = False
+    if _is_unauth(resp):
+        logger.warning(f"Kotak Neo returned unauthorized on {symbol}; re-authenticating automatically...")
+        reconnect_kotak_client()
+        k_res = kotak_login(force=True)
+        if k_res.get("ok"):
+            reauthed_ok = True
+            client = get_kotak_client()
+            if client is not None:
+                resp = _submit(client, product)
+
+    if isinstance(resp, dict) and product == "MIS" and (resp.get("stat") == "Not_Ok" or resp.get("error")) and not _is_unauth(resp):
         product = "NRML"
-        resp = client.place_order(
-            exchange_segment=ex_seg,
-            product=product,
-            price="0",
-            order_type="MKT",
-            quantity=str(qty),
-            validity="DAY",
-            trading_symbol=symbol,
-            transaction_type=tt,
-            amo="NO",
-        )
+        resp = _submit(client, product)
 
     if not isinstance(resp, dict):
         raise RuntimeError(f"Unexpected response from Kotak Neo: {resp}")
 
     if resp.get("error") or resp.get("stat") == "Not_Ok":
         err_msg = resp.get("errMsg") or resp.get("message") or resp.get("error")
+        if _is_unauth(resp) and not reauthed_ok:
+            reset_kotak_session()
         raise RuntimeError(f"Kotak Neo order rejected: {err_msg}")
 
     order_id = str(resp.get("nOrdNo") or resp.get("order_id") or resp.get("result", ""))
@@ -405,3 +430,125 @@ def cancel_kotak_order(order_id: str) -> dict:
         return {"ok": True, "response": resp}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+def _round_tick(px: float) -> float:
+    return max(0.05, round(round(float(px) / 0.05) * 0.05, 2))
+
+
+def place_kotak_sl_order(
+    symbol: str,
+    qty: int,
+    trigger_price: float,
+    product: str = "NRML",
+    exchange_segment: Optional[str] = None,
+) -> str:
+    """Place a live SELL Stop-Loss Limit (SL) order directly on Kotak Neo."""
+    client = get_kotak_client()
+    if client is None:
+        raise RuntimeError("Kotak Neo client not configured")
+    ex_seg = exchange_segment or ("bse_fo" if "SENSEX" in symbol.upper() else "nse_fo")
+    trig = _round_tick(trigger_price)
+    lim = _round_tick(max(0.05, trig - max(2.0, trig * 0.02)))
+    resp = client.place_order(
+        exchange_segment=ex_seg,
+        product=product,
+        price=str(lim),
+        order_type="SL",
+        quantity=str(qty),
+        validity="DAY",
+        trading_symbol=symbol,
+        transaction_type="S",
+        amo="NO",
+        trigger_price=str(trig),
+    )
+    if not isinstance(resp, dict) or resp.get("error") or resp.get("stat") == "Not_Ok":
+        err = resp.get("errMsg") or resp.get("message") or resp.get("error") if isinstance(resp, dict) else resp
+        raise RuntimeError(f"SL order rejected: {err}")
+    oid = str(resp.get("nOrdNo") or resp.get("order_id") or resp.get("result") or "")
+    if not oid:
+        raise RuntimeError(f"SL order missing ID: {resp}")
+    logger.info(f"Kotak native SL placed: {symbol} qty={qty} trig=₹{trig:.2f} lim=₹{lim:.2f} -> Order {oid}")
+    return oid
+
+
+def place_kotak_target_order(
+    symbol: str,
+    qty: int,
+    target_price: float,
+    product: str = "NRML",
+    exchange_segment: Optional[str] = None,
+) -> str:
+    """Place a live SELL Limit (Target) order directly on Kotak Neo."""
+    client = get_kotak_client()
+    if client is None:
+        raise RuntimeError("Kotak Neo client not configured")
+    ex_seg = exchange_segment or ("bse_fo" if "SENSEX" in symbol.upper() else "nse_fo")
+    lim = _round_tick(target_price)
+    resp = client.place_order(
+        exchange_segment=ex_seg,
+        product=product,
+        price=str(lim),
+        order_type="L",
+        quantity=str(qty),
+        validity="DAY",
+        trading_symbol=symbol,
+        transaction_type="S",
+        amo="NO",
+    )
+    if not isinstance(resp, dict) or resp.get("error") or resp.get("stat") == "Not_Ok":
+        err = resp.get("errMsg") or resp.get("message") or resp.get("error") if isinstance(resp, dict) else resp
+        raise RuntimeError(f"Target order rejected: {err}")
+    oid = str(resp.get("nOrdNo") or resp.get("order_id") or resp.get("result") or "")
+    if not oid:
+        raise RuntimeError(f"Target order missing ID: {resp}")
+    logger.info(f"Kotak native Target placed: {symbol} qty={qty} lim=₹{lim:.2f} -> Order {oid}")
+    return oid
+
+
+def modify_kotak_sl_order(order_id: str, qty: int, trigger_price: float) -> bool:
+    """Modify an existing Kotak Neo SL order to a new trigger price."""
+    client = get_kotak_client()
+    if client is None or not order_id:
+        return False
+    trig = _round_tick(trigger_price)
+    lim = _round_tick(max(0.05, trig - max(2.0, trig * 0.02)))
+    try:
+        resp = client.modify_order(
+            order_id=str(order_id),
+            price=str(lim),
+            order_type="SL",
+            quantity=str(qty),
+            validity="DAY",
+            trigger_price=str(trig),
+        )
+        ok = isinstance(resp, dict) and not resp.get("error") and resp.get("stat") != "Not_Ok"
+        if ok:
+            logger.info(f"Kotak native SL modified: Order {order_id} -> trig=₹{trig:.2f} lim=₹{lim:.2f}")
+        return ok
+    except Exception as exc:
+        logger.warning(f"Failed to modify Kotak SL order {order_id}: {exc}")
+        return False
+
+
+def modify_kotak_target_order(order_id: str, qty: int, target_price: float) -> bool:
+    """Modify an existing Kotak Neo Target Limit order."""
+    client = get_kotak_client()
+    if client is None or not order_id:
+        return False
+    lim = _round_tick(target_price)
+    try:
+        resp = client.modify_order(
+            order_id=str(order_id),
+            price=str(lim),
+            order_type="L",
+            quantity=str(qty),
+            validity="DAY",
+        )
+        ok = isinstance(resp, dict) and not resp.get("error") and resp.get("stat") != "Not_Ok"
+        if ok:
+            logger.info(f"Kotak native Target modified: Order {order_id} -> lim=₹{lim:.2f}")
+        return ok
+    except Exception as exc:
+        logger.warning(f"Failed to modify Kotak Target order {order_id}: {exc}")
+        return False

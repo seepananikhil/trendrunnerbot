@@ -115,12 +115,21 @@ def fetch_kotak_mtm_and_positions() -> tuple[float, list[dict]]:
                 total_pnl += pnl
 
                 if net_qty != 0:
+                    total_buy = buy_amt + cf_buy_amt
+                    total_sell = sell_amt + cf_sell_amt
+                    avg_px = 0.0
+                    if net_qty > 0 and fl_buy_qty > 0:
+                        avg_px = round(total_buy / (fl_buy_qty * mult), 2)
+                    elif net_qty < 0 and fl_sell_qty > 0:
+                        avg_px = round(total_sell / (fl_sell_qty * mult), 2)
                     open_positions.append({
                         "symbol": str(pos.get("trdSym") or pos.get("sym") or ""),
                         "exchange_segment": str(pos.get("exSeg") or "nse_fo"),
                         "product": str(pos.get("prod") or "NRML"),
                         "net_qty": net_qty,
-                        "pnl": pnl,
+                        "ltp": round(ltp, 2),
+                        "avg_price": avg_px,
+                        "pnl": round(pnl, 2),
                     })
             except Exception:
                 continue

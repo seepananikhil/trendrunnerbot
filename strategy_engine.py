@@ -48,6 +48,7 @@ from apex_duo_rules import (
     get_initial_sl_pts,
     get_vix_trap_sl_dist,
     is_high_conviction_sizing,
+    compute_auto_scaled_lots,
     REENTRY_CUTOFF_TIME,
 )
 
@@ -819,12 +820,20 @@ class TrendRunnerPaperEngine:
                     strike = int(round(entry_px / 50.0) * 50)
                     opt_str = f"NIFTY {strike} {opt_type} (ATM)"
 
-            # Dynamic Confluence Sizing (1 vs 2 Lots via Single Source of Truth)
-            if self.sizing_mode in ("hybrid", "dynamic"):
-                is_high_conviction = is_high_conviction_sizing(self.symbol, vix_chg, or_range)
-                base_lots = 2 if is_high_conviction else 1
-            else:
-                base_lots = self.lots
+            # Unified Auto-Scaling (Compounding + A+ Conviction)
+            final_lots, is_a_plus, scale_reason = compute_auto_scaled_lots(
+                symbol=self.symbol,
+                sizing_mode=self.sizing_mode,
+                base_lots=self.lots,
+                account_capital=float(getattr(self, "account_capital", 25000.0)),
+                capital_per_lot=float(getattr(self, "capital_per_lot", 25000.0)),
+                vix_chg=vix_chg,
+                or_range=or_range,
+                max_lots_cap=int(getattr(self, "max_lots_cap", 5)),
+            )
+            base_lots = final_lots
+            if scale_reason:
+                logger.info(f"[{self.symbol}] {scale_reason}")
 
             opt_symbol = opt_str
             opt_entry_px = 0.0

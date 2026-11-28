@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
-from broker_kotak import get_kotak_client
+from broker_kotak import get_kotak_client, reconnect_kotak_client
 
 logger = logging.getLogger("option_pricing")
 
@@ -107,28 +107,37 @@ def get_live_option_ltp(
         return None
 
     seg = scrip_info.get("exchange_segment", "nse_fo")
-    try:
-        q = client.quotes(
-            [{"instrument_token": scrip_info["token"], "exchange_segment": seg}],
-            quote_type="ltp",
-        )
-        if q and isinstance(q, list) and len(q) > 0:
-            ltp = float(q[0].get("ltp") or 0.0)
-            if ltp > 0:
-                result = {
-                    "symbol": scrip_info["symbol"],
-                    "token": scrip_info["token"],
-                    "expiry": scrip_info["expiry"],
-                    "exchange_segment": seg,
-                    "ltp": ltp,
-                    "bid": ltp,
-                    "ask": ltp,
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                _QUOTE_CACHE[cache_key] = (now_ts, result)
-                return result
-    except Exception as exc:
-        logger.warning(f"Quote error for {scrip_info['symbol']}: {exc}")
+    for attempt in range(2):
+        try:
+            q = client.quotes(
+                [{"instrument_token": scrip_info["token"], "exchange_segment": seg}],
+                quote_type="ltp",
+            )
+            if q and isinstance(q, list) and len(q) > 0:
+                ltp = float(q[0].get("ltp") or 0.0)
+                if ltp > 0:
+                    result = {
+                        "symbol": scrip_info["symbol"],
+                        "token": scrip_info["token"],
+                        "expiry": scrip_info["expiry"],
+                        "exchange_segment": seg,
+                        "ltp": ltp,
+                        "bid": ltp,
+                        "ask": ltp,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                    _QUOTE_CACHE[cache_key] = (now_ts, result)
+                    return result
+            break
+        except Exception as exc:
+            err_s = str(exc).lower()
+            if attempt == 0 and ("disconnected" in err_s or "connection" in err_s or "reset" in err_s):
+                reconnect_kotak_client()
+                client = get_kotak_client()
+                if client:
+                    continue
+            logger.warning(f"Quote error for {scrip_info['symbol']}: {exc}")
+            break
 
     if cached and (now_ts - cached[0] < 30.0):
         return cached[1]
