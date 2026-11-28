@@ -806,12 +806,170 @@
     }
     .btn-buy-pe:hover { background: #b91c1c; }
 
+    /* KOTAK PIN LOCK OVERLAY */
+    .pin-lock-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .pin-lock-card {
+      width: 100%;
+      max-width: 360px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px 22px;
+      box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.14);
+      text-align: center;
+    }
+    .pin-input {
+      width: 100%;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 22px;
+      letter-spacing: 8px;
+      padding: 11px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      margin: 14px 0 10px 0;
+      background: var(--sub-bg);
+      color: var(--text-main);
+    }
+    .pin-input:focus {
+      outline: none;
+      border-color: var(--brand);
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    /* MOBILE RESPONSIVE LAYOUT (<= 768px) */
+    @media (max-width: 768px) {
+      html, body, .app-layout {
+        height: auto;
+        min-height: 100vh;
+        width: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+      .app-layout {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+      }
+      .sidebar-top {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand-wrap {
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+      .side-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 58px;
+        background: #ffffff;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding: 4px 8px;
+        z-index: 50;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.06);
+      }
+      .side-nav-item {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        font-size: 11px;
+        padding: 4px 10px;
+        width: auto;
+      }
+      .sidebar-bottom {
+        flex-direction: row;
+        align-items: center;
+        padding-top: 0;
+        border-top: none;
+        gap: 6px;
+      }
+      .sidebar-bottom .btn {
+        width: auto;
+        padding: 6px 10px;
+        font-size: 11.5px;
+      }
+      #healthSummaryBtn, #liveClock {
+        display: none;
+      }
+      .main-canvas {
+        height: auto;
+        overflow: visible;
+        padding: 10px 10px 76px 10px;
+      }
+      #viewDashboard, #viewScalp, #viewSettings {
+        height: auto;
+        overflow: visible;
+      }
+      .strip-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .metric-value { font-size: 17px; }
+      .workbench-grid, .scalp-grid, .settings-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+      }
+      .card-left, .card-right, .settings-card {
+        height: auto;
+        overflow: visible;
+      }
+      .terminal-body {
+        max-height: 300px;
+      }
+      .pill-btn, .btn-buy-ce, .btn-buy-pe, #viewScalp .btn {
+        min-height: 44px;
+      }
+    }
+
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
-  <div class="app-layout">
+  <!-- KOTAK NEO PIN LOCK SCREEN -->
+  <div id="pinLockOverlay" class="pin-lock-overlay hidden">
+    <div class="pin-lock-card">
+      <div style="width:44px;height:44px;border-radius:10px;background:#0f172a;color:#38bdf8;display:inline-flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px;">🔒</div>
+      <div style="font-size:17px;font-weight:700;color:var(--text-main);">Nikhil's Trading Room</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Enter your Kotak Neo MPIN to unlock</div>
+      <form onsubmit="event.preventDefault(); submitPinUnlock();">
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="10" class="pin-input" placeholder="••••••" autocomplete="one-time-code" />
+        <div id="pinErrorMsg" style="font-size:11.5px;color:var(--err);min-height:16px;margin-bottom:8px;"></div>
+        <button type="submit" id="pinUnlockBtn" class="btn btn-primary" style="padding:10px 14px;font-size:13.5px;">Unlock Desk</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="appLayout" class="app-layout hidden">
     <!-- LEFT SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-top">
@@ -848,6 +1006,10 @@
         </button>
         <button id="btnSquareOff" class="btn btn-danger hidden" onclick="confirmSquareOff()">
           <span>⚠️ Exit All</span>
+        </button>
+        <button id="btnLockPanel" class="btn hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN">
+          <span>🔒</span>
+          <span>Lock</span>
         </button>
         <button id="healthSummaryBtn" class="btn" onclick="openHealthModal()" title="View System Health Checks" style="font-size:11.5px;padding:5px 8px;">
           <span id="healthSummaryTxt">Checks: 6/6 OK</span>
@@ -1418,6 +1580,12 @@
         updateScalpMoneyness();
         fetchScalpExpiries();
       }
+      try {
+        const targetPath = view === 'scalp' ? '/scalp' : '/';
+        if (window.location.pathname !== targetPath) {
+          window.history.replaceState(null, "", targetPath);
+        }
+      } catch (e) {}
     }
 
     function switchLeftTab(tab) {
@@ -1520,8 +1688,13 @@
 
     // MAIN 1-SECOND REFRESH ENGINE
     async function refreshState() {
+      if (_panelLocked) return;
       try {
         const res = await fetch("/api/state");
+        if (res.status === 401) {
+          showPinLock();
+          return;
+        }
         if (!res.ok) return;
         const d = await res.json();
 
@@ -2241,14 +2414,95 @@
       }).join("");
     }
 
-    // High-frequency 1-Second live poll for live P&L and market tick updates
-    refreshState();
-    setInterval(refreshState, 1000);
-    setInterval(() => {
-      if (!document.getElementById("viewScalp").classList.contains("hidden")) {
-        fetchScalpQuotes();
+    let _panelLocked = true;
+    let _pollStarted = false;
+
+    function showPinLock() {
+      _panelLocked = true;
+      document.getElementById("appLayout").classList.add("hidden");
+      document.getElementById("pinLockOverlay").classList.remove("hidden");
+      document.getElementById("pinErrorMsg").textContent = "";
+      setTimeout(() => {
+        const inp = document.getElementById("pinInput");
+        if (inp) { inp.value = ""; inp.focus(); }
+      }, 50);
+    }
+
+    function unlockDesktopUI(pinConfigured) {
+      _panelLocked = false;
+      document.getElementById("pinLockOverlay").classList.add("hidden");
+      document.getElementById("appLayout").classList.remove("hidden");
+      document.getElementById("btnLockPanel").classList.toggle("hidden", !pinConfigured);
+      if (window.location.pathname === "/scalp") {
+        switchView("scalp");
       }
-    }, 2500);
+      refreshState();
+      if (!_pollStarted) {
+        _pollStarted = true;
+        setInterval(refreshState, 1000);
+        setInterval(() => {
+          if (!_panelLocked && !document.getElementById("viewScalp").classList.contains("hidden")) {
+            fetchScalpQuotes();
+          }
+        }, 2500);
+      }
+    }
+
+    async function submitPinUnlock() {
+      const inp = document.getElementById("pinInput");
+      const errEl = document.getElementById("pinErrorMsg");
+      const btn = document.getElementById("pinUnlockBtn");
+      const pin = (inp.value || "").trim();
+      if (!pin) {
+        errEl.textContent = "Enter your Kotak Neo MPIN.";
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Verifying...";
+      try {
+        const res = await fetch("/api/auth/unlock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin }),
+        });
+        const d = await res.json();
+        if (res.ok && d.ok) {
+          unlockDesktopUI(true);
+        } else {
+          errEl.textContent = d.error || "Incorrect PIN.";
+          inp.value = "";
+          inp.focus();
+        }
+      } catch (e) {
+        errEl.textContent = "Connection error.";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Unlock Desk";
+      }
+    }
+
+    async function lockPanel() {
+      try {
+        await fetch("/api/auth/lock", { method: "POST" });
+      } catch (e) {}
+      showPinLock();
+    }
+
+    async function checkAuthAndBoot() {
+      try {
+        const res = await fetch("/api/auth/status");
+        const d = await res.json();
+        if (d.locked) {
+          showPinLock();
+        } else {
+          unlockDesktopUI(!!d.pin_configured);
+        }
+      } catch (e) {
+        unlockDesktopUI(false);
+      }
+    }
+
+    checkAuthAndBoot();
   </script>
 </body>
 </html>

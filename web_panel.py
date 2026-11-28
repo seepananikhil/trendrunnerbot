@@ -12,9 +12,11 @@ Allows the user to:
 from __future__ import annotations
 
 import csv
+import hmac
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -432,17 +434,56 @@ def _read_today_trades() -> list[dict]:
     return today_rows[-20:] if today_rows else rows[-15:]
 
 
+_PANEL_SESSIONS: dict[str, float] = {}
+_PIN_FAILS: dict[str, tuple[int, float]] = {}
+_SESSION_TTL_SEC = 12 * 3600
+
+
+def _get_active_pin() -> str:
+    """Return configured Kotak Neo MPIN (or PANEL_PIN override) used to lock the web panel."""
+    return (
+        os.getenv("PANEL_PIN", "").strip()
+        or os.getenv("WEB_PANEL_PIN", "").strip()
+        or os.getenv("NEO_MPIN", "").strip()
+        or os.getenv("KOTAK_MPIN", "").strip()
+    )
+
+
+def _extract_session_token(cookie_header: str) -> str:
+    for part in (cookie_header or "").split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == "tr_session" and v:
+            return v.strip()
+    return ""
+
+
 class PanelHandler(BaseHTTPRequestHandler):
-    def _send_json(self, code: int, payload: dict) -> None:
+    def _is_authorized(self) -> bool:
+        if not _get_active_pin():
+            return True
+        tok = _extract_session_token(self.headers.get("Cookie", ""))
+        if not tok:
+            return False
+        exp = _PANEL_SESSIONS.get(tok, 0.0)
+        if exp > time.time():
+            return True
+        _PANEL_SESSIONS.pop(tok, None)
+        return False
+
+    def _send_json(self, code: int, payload: dict, extra_headers: Optional[dict] = None) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self) -> None:
-        if self.path in ("/", "/panel.html"):
+        parsed_path = urlparse(self.path).path
+        if parsed_path in ("/", "/panel.html", "/scalp"):
             body = PANEL_HTML.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -451,7 +492,19 @@ class PanelHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if self.path == "/api/state":
+        if parsed_path == "/api/auth/status":
+            pin_configured = bool(_get_active_pin())
+            self._send_json(200, {
+                "pin_configured": pin_configured,
+                "locked": pin_configured and (not self._is_authorized()),
+            })
+            return
+
+        if not self._is_authorized():
+            self._send_json(401, {"ok": False, "locked": True, "error": "Kotak Neo PIN required"})
+            return
+
+        if parsed_path == "/api/state":
             import time as _t
             tok = kotak_token_status(auto_login=False)
             now_ts = _t.time()
@@ -545,6 +598,47 @@ class PanelHandler(BaseHTTPRequestHandler):
             data = json.loads(raw) if raw else {}
         except Exception:
             self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+            return
+
+        if self.path == "/api/auth/unlock":
+            active_pin = _get_active_pin()
+            if not active_pin:
+                self._send_json(200, {"ok": True, "pin_configured": False})
+                return
+            client_ip = (self.client_address[0] if self.client_address else "unknown")
+            fails, locked_until = _PIN_FAILS.get(client_ip, (0, 0.0))
+            now_ts = time.time()
+            if locked_until > now_ts:
+                wait_s = int(locked_until - now_ts) + 1
+                self._send_json(429, {"ok": False, "error": f"Too many attempts. Try again in {wait_s}s."})
+                return
+            pin = str(data.get("pin", "")).strip()
+            if pin and hmac.compare_digest(pin, active_pin):
+                _PIN_FAILS.pop(client_ip, None)
+                tok = secrets.token_urlsafe(32)
+                _PANEL_SESSIONS[tok] = now_ts + _SESSION_TTL_SEC
+                cookie = f"tr_session={tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age={_SESSION_TTL_SEC}"
+                self._send_json(200, {"ok": True, "locked": False}, extra_headers={"Set-Cookie": cookie})
+            else:
+                fails += 1
+                lock_until = (now_ts + 30.0) if fails >= 5 else 0.0
+                _PIN_FAILS[client_ip] = (0 if fails >= 5 else fails, lock_until)
+                self._send_json(401, {"ok": False, "error": "Incorrect Kotak Neo PIN."})
+            return
+
+        if self.path == "/api/auth/lock":
+            tok = _extract_session_token(self.headers.get("Cookie", ""))
+            if tok:
+                _PANEL_SESSIONS.pop(tok, None)
+            self._send_json(
+                200,
+                {"ok": True, "locked": bool(_get_active_pin())},
+                extra_headers={"Set-Cookie": "tr_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"},
+            )
+            return
+
+        if not self._is_authorized():
+            self._send_json(401, {"ok": False, "locked": True, "error": "Kotak Neo PIN required"})
             return
 
         if self.path == "/api/settings":
