@@ -1421,12 +1421,7 @@
               <div style="background:var(--sub-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                   <label style="margin-bottom:0;">Strike Price</label>
-                  <div style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;font-weight:700;">
-                    <span style="color:var(--ok);">CE: <span id="scalpStrikeCePx">₹—</span></span>
-                    <span style="color:var(--text-dim);">|</span>
-                    <span style="color:var(--err);">PE: <span id="scalpStrikePePx">₹—</span></span>
-                    <span id="scalpMoneynessBadge" class="badge badge-mode" style="font-size:10px;">ATM</span>
-                  </div>
+                  <span id="scalpMoneynessBadge" class="badge badge-mode" style="font-size:10px;">ATM</span>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;">
                   <button type="button" class="btn" style="width:44px;height:36px;font-size:16px;" onclick="stepScalpStrike(-1)">−</button>
@@ -2475,8 +2470,6 @@
     function setScalpQuotesLoading() {
       const strike = document.getElementById("scalpStrike").value || getScalpAtm();
       _scalpLastQuotes = { ce: 0, pe: 0 };
-      document.getElementById("scalpStrikeCePx").textContent = "⏳";
-      document.getElementById("scalpStrikePePx").textContent = "⏳";
       document.getElementById("scalpCeLtp").textContent = "⏳ ...";
       document.getElementById("scalpPeLtp").textContent = "⏳ ...";
       document.getElementById("scalpCeSym").textContent = `Loading ${_scalpIndex} ${strike} CE...`;
@@ -2614,8 +2607,6 @@
         _scalpLastQuotes = { ce: ceLtp, pe: peLtp };
         const ceTxt = ceLtp > 0 ? `₹${ceLtp.toFixed(2)}` : "₹—";
         const peTxt = peLtp > 0 ? `₹${peLtp.toFixed(2)}` : "₹—";
-        document.getElementById("scalpStrikeCePx").textContent = ceTxt;
-        document.getElementById("scalpStrikePePx").textContent = peTxt;
         document.getElementById("scalpCeSym").textContent = ce.symbol || `${_scalpIndex} ${strike} CE`;
         document.getElementById("scalpCeLtp").textContent = ceTxt;
         document.getElementById("scalpPeSym").textContent = pe.symbol || `${_scalpIndex} ${strike} PE`;
