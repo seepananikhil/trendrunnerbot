@@ -135,13 +135,17 @@ def get_vix_trap_sl_dist(
     return max(25.0, min(80.0, raw))
 
 
-def is_high_conviction_sizing(symbol: str, vix_chg: float, or_range: float) -> bool:
+def is_high_conviction_sizing(symbol: str, vix_chg: float, or_range: float, spot_px: float = 0.0) -> bool:
     """
     A+ Dynamic 2-Lot Conviction Gate:
-    |VIX| >= 4.0% AND clean Opening Range (< 75 pts NIFTY / < 450 pts SENSEX).
+    |VIX| >= 4.0% AND clean Opening Range (< 0.55% of spot; fallback < 140 pts NIFTY / < 450 pts SENSEX).
     """
-    or_cap = 450.0 if symbol.upper() == "SENSEX" else 75.0
-    return abs(vix_chg) >= 4.0 and 0.0 < or_range < or_cap
+    if spot_px > 0:
+        clean_or = 0.0 < (or_range / spot_px) < 0.0055
+    else:
+        or_cap = 450.0 if symbol.upper() == "SENSEX" else 140.0
+        clean_or = 0.0 < or_range < or_cap
+    return abs(vix_chg) >= 4.0 and clean_or
 
 
 def compute_auto_scaled_lots(
@@ -153,6 +157,7 @@ def compute_auto_scaled_lots(
     vix_chg: float = 0.0,
     or_range: float = 0.0,
     max_lots_cap: int = 100,
+    spot_px: float = 0.0,
 ) -> tuple[int, bool, str]:
     """
     Auto Step-Up Sizing Engine:
@@ -160,7 +165,7 @@ def compute_auto_scaled_lots(
     - Auto Step-Up mode: stays at base_lots while capital < ₹50,000;
       once capital >= ₹50,000, steps up to floor(capital / capital_per_lot)
       (e.g. ₹50k -> 2 lots, ₹75k -> 3 lots, ₹1L -> 4 lots).
-    - High-Conviction (|VIX| >= 4.0%): adds +1 lot when capital >= ₹50,000.
+    - High-Conviction (|VIX| >= 4.0% & OR < 0.55% of spot): adds +1 lot when capital >= ₹50,000.
     """
     mode = str(sizing_mode or "auto_scale").strip().lower()
     default_lots = max(1, int(base_lots or 1))
@@ -176,7 +181,7 @@ def compute_auto_scaled_lots(
     else:
         stepped_lots = max(default_lots, int(cap // buffer))
 
-    is_momentum = abs(vix_chg) >= 4.0
+    is_momentum = is_high_conviction_sizing(symbol, vix_chg, or_range, spot_px)
     if is_momentum:
         if cap >= step_threshold:
             final_lots = min(max_lots_cap, stepped_lots + 1)

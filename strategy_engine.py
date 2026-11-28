@@ -830,6 +830,7 @@ class TrendRunnerPaperEngine:
                 vix_chg=vix_chg,
                 or_range=or_range,
                 max_lots_cap=int(getattr(self, "max_lots_cap", 5)),
+                spot_px=entry_px,
             )
             base_lots = final_lots
             if scale_reason:
