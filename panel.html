@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nikhil's Trading Room</title>
+  <script>
+    (function(){
+      if (localStorage.getItem("tr_theme") === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <style>
     :root {
       --bg: #f8fafc;
@@ -34,6 +41,59 @@
       --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
       --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
+
+    [data-theme="dark"] {
+      --bg: #0b1120;
+      --card-bg: #111827;
+      --sub-bg: #1e293b;
+      --border: #1f2937;
+      --border-focus: #3b82f6;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --brand: #3b82f6;
+      --brand-hover: #2563eb;
+
+      --ok: #10b981;
+      --ok-light: rgba(16, 185, 129, 0.14);
+      --ok-border: rgba(16, 185, 129, 0.35);
+
+      --warn: #f59e0b;
+      --warn-light: rgba(245, 158, 11, 0.14);
+      --warn-border: rgba(245, 158, 11, 0.35);
+
+      --err: #ef4444;
+      --err-light: rgba(239, 68, 68, 0.14);
+      --err-border: rgba(239, 68, 68, 0.35);
+
+      --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.35);
+    }
+    [data-theme="dark"] .sidebar,
+    [data-theme="dark"] .btn,
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] .side-nav,
+    [data-theme="dark"] .cal-cell,
+    [data-theme="dark"] .modal-card,
+    [data-theme="dark"] .pin-lock-card,
+    [data-theme="dark"] .pill-btn {
+      background: var(--card-bg);
+      color: var(--text-main);
+    }
+    [data-theme="dark"] .btn:hover,
+    [data-theme="dark"] .pill-btn:hover { background: var(--sub-bg); }
+    [data-theme="dark"] .btn-primary { background: var(--brand); color: #ffffff; border-color: var(--brand); }
+    [data-theme="dark"] .btn-pause { background: var(--warn-light); color: var(--warn); border-color: var(--warn-border); }
+    [data-theme="dark"] .btn-resume { background: var(--ok-light); color: var(--ok); border-color: var(--ok-border); }
+    [data-theme="dark"] .btn-danger { background: var(--err-light); color: var(--err); border-color: var(--err-border); }
+    [data-theme="dark"] .side-nav-item.active { background: rgba(59, 130, 246, 0.16); color: #60a5fa; }
+    [data-theme="dark"] .pill-btn.active { background: rgba(59, 130, 246, 0.2); border-color: var(--brand); color: #93c5fd; }
+    [data-theme="dark"] thead th { background: var(--sub-bg); color: var(--text-muted); }
+    [data-theme="dark"] .pos-hero.active { background: rgba(16, 185, 129, 0.08); border-color: var(--ok-border); }
+    [data-theme="dark"] .pos-metric-box { background: var(--sub-bg); }
+    [data-theme="dark"] .cal-cell.win { background: rgba(16, 185, 129, 0.14); border-color: rgba(16, 185, 129, 0.35); }
+    [data-theme="dark"] .cal-cell.loss { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.35); }
+    [data-theme="dark"] .pin-lock-overlay { background: linear-gradient(135deg, #0b1120 0%, #1e293b 100%); }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -1111,8 +1171,9 @@
             <span id="healthDot" style="color:var(--ok);">●</span>
             <span id="healthSummaryTxt">6/6 OK</span>
           </button>
-          <div style="display:inline-flex;align-items:center;gap:6px;">
+          <div style="display:inline-flex;align-items:center;gap:4px;">
             <span id="liveClock" style="font-family:var(--font-mono);font-size:10.5px;">--:-- IST</span>
+            <button id="btnThemeToggle" class="footer-link" onclick="toggleTheme()" title="Toggle Dark / Light Theme">🌙</button>
             <button id="btnLockPanel" class="footer-link hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN">🔒</button>
           </div>
         </div>
@@ -2777,6 +2838,25 @@
       }
     }
 
+    function syncThemeIcon() {
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      const btn = document.getElementById("btnThemeToggle");
+      if (btn) btn.textContent = isDark ? "☀️" : "🌙";
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if (isDark) {
+        document.documentElement.removeAttribute("data-theme");
+        localStorage.setItem("tr_theme", "light");
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        localStorage.setItem("tr_theme", "dark");
+      }
+      syncThemeIcon();
+    }
+
+    syncThemeIcon();
     checkAuthAndBoot();
   </script>
 </body>
