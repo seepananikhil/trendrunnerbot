@@ -799,27 +799,27 @@ class TrendRunnerPaperEngine:
                     sl_px = entry_px - effective_sl_pts if sig == "LONG" else entry_px + effective_sl_pts
             opt_type = "CE" if sig == "LONG" else "PE"
 
-            # Strike Selection: ATM or ITM-<offset> (up to 500)
+            # Strike Selection: ATM, ITM-<offset>, or OTM+<offset> (up to 500)
             mode_str = str(self.strike_mode or "itm150").strip().lower()
-            itm_offset = 0
-            if mode_str.startswith("itm"):
-                digits = "".join(ch for ch in mode_str if ch.isdigit())
+            digits = "".join(ch for ch in mode_str if ch.isdigit())
+            step_val = 100.0 if self.symbol == "SENSEX" else 50.0
+            if mode_str.startswith("otm"):
+                otm_offset = min(500, max(0, int(digits))) if digits else int(step_val)
+                raw_strike = (entry_px + otm_offset) if sig == "LONG" else (entry_px - otm_offset)
+                strike = int(round(raw_strike / step_val) * step_val)
+                opt_str = f"{self.symbol} {strike} {opt_type} (OTM+{otm_offset})" if otm_offset > 0 else f"{self.symbol} {strike} {opt_type} (ATM)"
+            elif mode_str.startswith("itm"):
                 itm_offset = min(500, max(0, int(digits))) if digits else 150
-
-            if self.symbol == "SENSEX":
                 if itm_offset > 0:
-                    strike = int(round((entry_px - itm_offset if sig == "LONG" else entry_px + itm_offset) / 100.0) * 100)
-                    opt_str = f"SENSEX {strike} {opt_type} (ITM-{itm_offset})"
+                    raw_strike = (entry_px - itm_offset) if sig == "LONG" else (entry_px + itm_offset)
+                    strike = int(round(raw_strike / step_val) * step_val)
+                    opt_str = f"{self.symbol} {strike} {opt_type} (ITM-{itm_offset})"
                 else:
-                    strike = int(round(entry_px / 100.0) * 100)
-                    opt_str = f"SENSEX {strike} {opt_type} (ATM)"
+                    strike = int(round(entry_px / step_val) * step_val)
+                    opt_str = f"{self.symbol} {strike} {opt_type} (ATM)"
             else:
-                if itm_offset > 0:
-                    strike = int(round((entry_px - itm_offset if sig == "LONG" else entry_px + itm_offset) / 50.0) * 50)
-                    opt_str = f"NIFTY {strike} {opt_type} (ITM-{itm_offset})"
-                else:
-                    strike = int(round(entry_px / 50.0) * 50)
-                    opt_str = f"NIFTY {strike} {opt_type} (ATM)"
+                strike = int(round(entry_px / step_val) * step_val)
+                opt_str = f"{self.symbol} {strike} {opt_type} (ATM)"
 
             # Unified Auto-Scaling (Compounding + A+ Conviction)
             final_lots, is_a_plus, scale_reason = compute_auto_scaled_lots(
