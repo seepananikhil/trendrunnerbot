@@ -172,39 +172,35 @@
     .sidebar-bottom {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
       padding-top: 12px;
       border-top: 1px solid var(--border);
     }
-    .sidebar-util-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .sidebar-util-row .btn {
-      flex: 1;
-      padding: 6px 8px;
-      font-size: 11px;
-      border-radius: 7px;
-      background: var(--sub-bg);
-      border-color: transparent;
-      color: var(--text-muted);
-    }
-    .sidebar-util-row .btn:hover {
-      background: #e2e8f0;
-      color: var(--text-main);
-    }
-    .sidebar-meta-bar {
+    .sidebar-footer-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 8px;
-      border-radius: 7px;
-      background: var(--sub-bg);
-      font-family: var(--font-mono);
-      font-size: 10.5px;
+      padding: 2px 2px 0 2px;
+      font-size: 11px;
       color: var(--text-muted);
+    }
+    .footer-link {
+      background: transparent;
+      border: none;
+      padding: 2px 4px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
       font-weight: 600;
+      color: var(--text-muted);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .footer-link:hover {
+      background: var(--sub-bg);
+      color: var(--text-main);
     }
 
     .btn {
@@ -1015,7 +1011,7 @@
         padding: 6px 10px;
         font-size: 11.5px;
       }
-      #healthSummaryBtn, .sidebar-meta-bar {
+      #healthSummaryBtn, #liveClock {
         display: none;
       }
       .main-canvas {
@@ -1110,21 +1106,15 @@
         <button id="btnSquareOff" class="btn btn-danger hidden" onclick="confirmSquareOff()" style="border-radius:8px;padding:8px 12px;">
           <span>⚠️ Exit All</span>
         </button>
-        <div class="sidebar-util-row">
-          <button id="healthSummaryBtn" class="btn" onclick="openHealthModal()" title="View System Health Checks">
-            <span id="healthSummaryTxt">● 6/6 OK</span>
+        <div class="sidebar-footer-row">
+          <button id="healthSummaryBtn" class="footer-link" onclick="openHealthModal()" title="View System Health Checks">
+            <span id="healthDot" style="color:var(--ok);">●</span>
+            <span id="healthSummaryTxt">6/6 OK</span>
           </button>
-          <button id="btnLockPanel" class="btn hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN" style="flex:0 0 auto;padding:6px 10px;">
-            <span>🔒</span>
-            <span>Lock</span>
-          </button>
-        </div>
-        <div class="sidebar-meta-bar">
-          <span style="display:inline-flex;align-items:center;gap:5px;">
-            <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);"></span>
-            <span>DESK</span>
-          </span>
-          <span id="liveClock">--:--:-- IST</span>
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <span id="liveClock" style="font-family:var(--font-mono);font-size:10.5px;">--:-- IST</span>
+            <button id="btnLockPanel" class="footer-link hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN">🔒</button>
+          </div>
         </div>
       </div>
     </aside>
@@ -1896,17 +1886,18 @@
         const errChecks = checks.filter(c => c.status === "err");
         const warnChecks = checks.filter(c => c.status === "warn");
         const hb = document.getElementById("healthSummaryBtn");
+        const hd = document.getElementById("healthDot");
         const ht = document.getElementById("healthSummaryTxt");
         hb.title = checks.map(c => `${c.name}: ${c.detail}`).join("\n");
         if (errChecks.length > 0) {
-          hb.className = "btn btn-danger";
-          ht.textContent = `● ${checks.length - errChecks.length}/${checks.length} Checks Error`;
+          hd.style.color = "var(--err)";
+          ht.textContent = `${checks.length - errChecks.length}/${checks.length} Error`;
         } else if (warnChecks.length > 0) {
-          hb.className = "btn btn-pause";
-          ht.textContent = `● ${checks.length - warnChecks.length}/${checks.length} Checks OK`;
+          hd.style.color = "var(--warn)";
+          ht.textContent = `${checks.length - warnChecks.length}/${checks.length} OK`;
         } else {
-          hb.className = "btn";
-          ht.textContent = `● ${checks.length}/${checks.length} Checks OK`;
+          hd.style.color = "var(--ok)";
+          ht.textContent = `${checks.length}/${checks.length} OK`;
         }
 
         document.getElementById("healthModalBody").innerHTML = checks.map(c => {
