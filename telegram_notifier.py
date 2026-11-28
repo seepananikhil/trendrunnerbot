@@ -294,8 +294,11 @@ def notify_system(title: str, details: str, level: str = "INFO") -> None:
     send_telegram_message(msg, dedup_key=f"sys_{title}_{level}", cooldown_sec=30.0)
 
 
-def dispatch_daily_eod_report(target_date: Optional[str] = None) -> bool:
-    """Summarize today's closed trades and send EOD P&L report via Telegram."""
+def dispatch_daily_eod_report(
+    target_date: Optional[str] = None,
+    available_funds: Optional[float] = None,
+) -> bool:
+    """Summarize today's closed trades and send EOD performance report via Telegram."""
     date_str = target_date or datetime.now(IST).strftime("%Y-%m-%d")
     trades_csv = ROOT / "data" / "performance" / "trend_runner_trades.csv"
 
@@ -309,34 +312,53 @@ def dispatch_daily_eod_report(target_date: Optional[str] = None) -> bool:
         except Exception as exc:
             logger.warning(f"Failed reading trades CSV for EOD report: {exc}")
 
-    if not rows:
-        notify_system(
-            f"EOD Summary ({date_str})",
-            "No trades executed today.",
-            level="INFO",
-        )
-        return True
+    total_pnl = sum(float(r.get("pnl_rupees") or 0.0) for r in rows)
+    wins = [r for r in rows if float(r.get("pnl_rupees") or 0.0) >= 0]
+    losses = [r for r in rows if float(r.get("pnl_rupees") or 0.0) < 0]
+    win_count = len(wins)
+    loss_count = len(losses)
+    total_trades = len(rows)
+    win_rate = (win_count / total_trades * 100.0) if total_trades > 0 else 0.0
 
-    total_pnl = 0.0
-    wins = 0
-    lines = []
-    for r in rows:
-        pnl = float(r.get("pnl_rupees") or 0.0)
-        total_pnl += pnl
-        if pnl >= 0:
-            wins += 1
-        sym = r.get("symbol", "NIFTY")
-        side = r.get("side", "")
-        reason = r.get("exit_reason", "")
-        lines.append(f"• {sym} {side}: ₹{pnl:+,.2f} ({reason})")
+    total_win_pnl = sum(float(r.get("pnl_rupees") or 0.0) for r in wins)
+    total_loss_pnl = abs(sum(float(r.get("pnl_rupees") or 0.0) for r in losses))
+    pf = (total_win_pnl / total_loss_pnl) if total_loss_pnl > 0 else (99.0 if total_win_pnl > 0 else 1.0)
 
-    losses = len(rows) - wins
-    icon = "📈" if total_pnl >= 0 else "📉"
-    summary = (
-        f"{icon} <b>DAILY EOD P&amp;L SUMMARY — {date_str}</b>\n"
-        f"Trades: <b>{len(rows)}</b> (Wins: {wins} | Losses: {losses})\n"
-        f"Net Realized P&amp;L: <b>₹{total_pnl:+,.2f}</b>\n\n"
-        + "\n".join(lines)
-    )
+    pnl_formatted = f"+₹{total_pnl:,.0f}" if total_pnl >= 0 else f"-₹{abs(total_pnl):,.0f}"
+    pnl_dot = "🟢" if total_pnl >= 0 else "🔴"
+
+    lines = [
+        "📊 <b>EOD FnO PERFORMANCE REPORT</b>",
+        f"📅 <b>Date:</b> {date_str}",
+        "",
+        f"💰 <b>Final Realized PnL:</b> {pnl_dot} <b>{pnl_formatted}</b>",
+    ]
+
+    if total_trades > 0:
+        lines.extend([
+            f"🎯 <b>Win Rate:</b> {win_rate:.1f}% ({win_count}W / {loss_count}L)",
+            f"⚖️ <b>Profit Factor:</b> {pf:.2f} (Total {total_trades} trades)",
+            "",
+            "<b>FnO Trades Closed Today:</b>",
+        ])
+        for r in rows:
+            p = float(r.get("pnl_rupees") or 0.0)
+            dot = "🟢" if p >= 0 else "🔴"
+            p_str = f"+₹{p:,.0f}" if p >= 0 else f"-₹{abs(p):,.0f}"
+            sym = str(r.get("symbol") or "NIFTY")
+            opt = _clean_option_name(str(r.get("option") or sym))
+            if sym.upper() not in opt.upper():
+                opt = f"{sym} {opt}"
+            reason = str(r.get("exit_reason") or "").replace("_", " ").title()
+            reason_str = f" · <i>{_escape_html(reason)}</i>" if reason else ""
+            lines.append(f"• {dot} <b>{_escape_html(opt)}:</b> {p_str}{reason_str}")
+    else:
+        lines.append("ℹ️ <i>No trades closed today.</i>")
+
+    if available_funds is not None:
+        lines.extend(["", f"💼 <b>Available Funds:</b> ₹{available_funds:,.2f}"])
+
+    lines.extend(["", "⚡ <i>Nikhil Algo Live Trading Engine</i>"])
+    summary = "\n".join(lines)
     send_telegram_message(summary, dedup_key=f"eod_{date_str}", cooldown_sec=300.0)
     return True

@@ -480,7 +480,7 @@ def strategy_runner_loop(symbol: str) -> None:
                     vix_th=float(inst_cfg.get("vix_th", 1.8)),
                     vix_call_th=float(inst_cfg.get("vix_call_th", 1.8)),
                     reentry=True,
-                    notify_telegram=True,
+                    notify_telegram=is_live_mode(),
                     fetch_live_quotes=True,
                     enable_trend_runner=enable_trend,
                     enable_vix_trap=enable_trap,
@@ -590,19 +590,29 @@ def scheduler_loop() -> None:
                 last_day = cur_day
 
             if now.weekday() < 5:
-                # 08:55 IST: Pre-market Kotak Neo TOTP auto-login
+                # 08:55 IST: Pre-market Kotak Neo TOTP auto-login (weekdays only)
                 if (now.hour, now.minute) == (8, 55) and premarket_tag != cur_day:
                     premarket_tag = cur_day
                     res = kotak_login()
                     if res.get("ok"):
-                        notify_system("Pre-Market Login OK", f"Kotak Neo authenticated for UCC {res.get('ucc')}.", level="OK")
+                        f_res = available_kotak_funds()
+                        avail = f_res.get("available_equity_funds")
+                        funds_str = f"₹{float(avail):,.2f}" if (f_res.get("ok") and avail is not None) else "Unavailable"
+                        notify_system(
+                            "Pre-Market Login Successful",
+                            f"UCC: {res.get('ucc')}\nAvailable Funds: {funds_str}\nStatus: Ready for 09:15 IST",
+                            level="OK",
+                        )
                     else:
                         notify_system("Pre-Market Login Failed", str(res.get("error")), level="ERROR")
 
-                # 15:30 IST: Daily EOD P&L summary
+                # 15:30 IST: Daily EOD P&L summary (live engine only)
                 if (now.hour, now.minute) == (15, 30) and eod_tag != cur_day:
                     eod_tag = cur_day
-                    dispatch_daily_eod_report(cur_day)
+                    if is_live_mode():
+                        f_res = available_kotak_funds()
+                        avail = float(f_res["available_equity_funds"]) if (f_res.get("ok") and f_res.get("available_equity_funds") is not None) else None
+                        dispatch_daily_eod_report(cur_day, available_funds=avail)
         except Exception as exc:
             logger.warning(f"Scheduler error: {exc}")
         time.sleep(15)
@@ -635,10 +645,10 @@ def main() -> None:
     tok = kotak_token_status(auto_login=True)
     if tok.get("valid"):
         logger.info(f"Kotak Neo session valid for UCC {tok.get('ucc')}")
-        notify_system("Trading Engine Started", f"Mode: {mode}\nUCC: {tok.get('ucc')}\nStatus: Online", level="OK")
     else:
         logger.warning(f"Kotak Neo session not ready: {tok.get('reason')}")
-        notify_system("Trading Engine Started (Auth Warning)", f"Mode: {mode}\nReason: {tok.get('reason')}", level="WARN")
+        if is_live_mode():
+            notify_system("Trading Engine Auth Warning", f"Mode: {mode}\nReason: {tok.get('reason')}", level="WARN")
 
     # Start core autonomous threads
     streamer = MarketDataStreamer()
