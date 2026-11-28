@@ -642,6 +642,7 @@ class TrendRunnerPaperEngine:
                     "exit_reason": exit_reason,
                     "vix_chg": round(vix_chg, 2),
                     "base_lots": base_lots,
+                    "is_a_plus": bool(pos.get("is_a_plus", False)),
                     "pyramided": pos.get("pyramided", False),
                     "total_lots": total_lots,
                     "weighted_pnl_points": round(weighted_pnl_pts, 2),
@@ -875,6 +876,7 @@ class TrendRunnerPaperEngine:
                 "peak_low": entry_px,
                 "max_fav": 0.0,
                 "base_lots": base_lots,
+                "is_a_plus": bool(is_a_plus),
                 "pyramided": False,
                 "pyramid_entry_px": None,
             }
@@ -996,7 +998,7 @@ class TrendRunnerPaperEngine:
             "option_entry_price", "option_exit_price", "option_pnl_points", "option_pnl_rupees",
             "entry_time", "entry_price", "sl", "final_sl", "target", "exit_time", "exit_price", "exit_reason",
             "pnl_points", "pnl_rupees", "futures_pnl_rupees", "diff_rupees",
-            "max_fav", "max_adv", "rr", "lots", "qty", "vix_chg", "initial_sl", "base_lots", "total_lots", "pyramided"
+            "max_fav", "max_adv", "rr", "lots", "qty", "vix_chg", "initial_sl", "base_lots", "total_lots", "pyramided", "is_a_plus"
         ]
 
         if self.symbol == "SENSEX":

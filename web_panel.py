@@ -516,9 +516,13 @@ def _read_calendar_performance(month_str: str) -> dict:
         month_pnl += pnl
         if pnl >= 0:
             month_wins += 1
-        bucket = days.setdefault(d_str, {"net_pnl": 0.0, "trades_count": 0, "wins": 0, "losses": 0, "trades": []})
+        bucket = days.setdefault(d_str, {"net_pnl": 0.0, "trades_count": 0, "wins": 0, "losses": 0, "has_a_plus": False, "a_plus_count": 0, "trades": []})
+        is_a_plus = str(r.get("is_a_plus", "")).strip().lower() in ("true", "1", "yes")
         bucket["net_pnl"] = round(bucket["net_pnl"] + pnl, 2)
         bucket["trades_count"] += 1
+        if is_a_plus:
+            bucket["has_a_plus"] = True
+            bucket["a_plus_count"] += 1
         if pnl >= 0:
             bucket["wins"] += 1
         else:
@@ -536,6 +540,7 @@ def _read_calendar_performance(month_str: str) -> dict:
             "option_pnl_points": r.get("option_pnl_points", ""),
             "pnl_rupees": round(pnl, 2),
             "exit_reason": r.get("exit_reason", ""),
+            "is_a_plus": is_a_plus,
         })
 
     total_trades = len(rows)
