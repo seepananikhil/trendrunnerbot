@@ -172,9 +172,39 @@
     .sidebar-bottom {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding-top: 14px;
+      gap: 8px;
+      padding-top: 12px;
       border-top: 1px solid var(--border);
+    }
+    .sidebar-util-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .sidebar-util-row .btn {
+      flex: 1;
+      padding: 6px 8px;
+      font-size: 11px;
+      border-radius: 7px;
+      background: var(--sub-bg);
+      border-color: transparent;
+      color: var(--text-muted);
+    }
+    .sidebar-util-row .btn:hover {
+      background: #e2e8f0;
+      color: var(--text-main);
+    }
+    .sidebar-meta-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 7px;
+      background: var(--sub-bg);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--text-muted);
+      font-weight: 600;
     }
 
     .btn {
@@ -985,7 +1015,7 @@
         padding: 6px 10px;
         font-size: 11.5px;
       }
-      #healthSummaryBtn, #liveClock {
+      #healthSummaryBtn, .sidebar-meta-bar {
         display: none;
       }
       .main-canvas {
@@ -1073,22 +1103,28 @@
 
       <!-- SIDEBAR BOTTOM ACTIONS -->
       <div class="sidebar-bottom">
-        <button id="btnPauseResume" class="btn btn-pause" onclick="toggleBotPause()">
+        <button id="btnPauseResume" class="btn btn-pause" onclick="toggleBotPause()" style="border-radius:8px;padding:8px 12px;">
           <span id="btnPauseIcon">⏸</span>
           <span id="btnPauseTxt">Pause Bot</span>
         </button>
-        <button id="btnSquareOff" class="btn btn-danger hidden" onclick="confirmSquareOff()">
+        <button id="btnSquareOff" class="btn btn-danger hidden" onclick="confirmSquareOff()" style="border-radius:8px;padding:8px 12px;">
           <span>⚠️ Exit All</span>
         </button>
-        <button id="btnLockPanel" class="btn hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN">
-          <span>🔒</span>
-          <span>Lock</span>
-        </button>
-        <button id="healthSummaryBtn" class="btn" onclick="openHealthModal()" title="View System Health Checks" style="font-size:11.5px;padding:5px 8px;">
-          <span id="healthSummaryTxt">Checks: 6/6 OK</span>
-        </button>
-        <div id="liveClock" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);font-weight:600;text-align:center;">
-          --:--:-- IST
+        <div class="sidebar-util-row">
+          <button id="healthSummaryBtn" class="btn" onclick="openHealthModal()" title="View System Health Checks">
+            <span id="healthSummaryTxt">● 6/6 OK</span>
+          </button>
+          <button id="btnLockPanel" class="btn hidden" onclick="lockPanel()" title="Lock Panel with Kotak PIN" style="flex:0 0 auto;padding:6px 10px;">
+            <span>🔒</span>
+            <span>Lock</span>
+          </button>
+        </div>
+        <div class="sidebar-meta-bar">
+          <span style="display:inline-flex;align-items:center;gap:5px;">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--ok);"></span>
+            <span>DESK</span>
+          </span>
+          <span id="liveClock">--:--:-- IST</span>
         </div>
       </div>
     </aside>
