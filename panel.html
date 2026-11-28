@@ -2901,7 +2901,7 @@
         const sel = dStr === autoSelect ? "selected" : "";
         const pnlTxt = info ? `${info.net_pnl >= 0 ? '+' : '-'}₹${Math.abs(info.net_pnl).toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "";
         const cntTxt = info ? `${info.trades_count}T` : "";
-        const aPlusTag = (info && info.has_a_plus) ? `<span class="cal-aplus-badge" title="A+ High-Conviction Setup">A+</span>` : "";
+        const aPlusTag = (info && info.has_a_plus) ? `<span title="A+ High-Conviction Setup" style="font-size:10px;line-height:1;">🔥</span>` : "";
         html += `<div class="cal-cell ${cls} ${aPlusCls} ${sel}" onclick="selectPerfDay('${dStr}')">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:2px;">
             <span class="cal-day-num">${day}</span>
